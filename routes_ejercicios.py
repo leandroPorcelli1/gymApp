@@ -57,7 +57,6 @@ def obtener_ejercicios():
         'id_ejercicios': e.id_ejercicios,
         'nombre': e.nombre,
         'descripcion': e.descripcion,
-        'rutinas_id': e.rutinas_id
     } for e in ejercicios])
 
 @ejercicios_bp.route('/ejercicios/<int:id>', methods=['GET'])
@@ -67,7 +66,6 @@ def obtener_ejercicio(id):
         'id_ejercicios': ejercicio.id_ejercicios,
         'nombre': ejercicio.nombre,
         'descripcion': ejercicio.descripcion,
-        'rutinas_id': ejercicio.rutinas_id
     })
 
 @ejercicios_bp.route('/ejercicios/<int:id>', methods=['PUT'])

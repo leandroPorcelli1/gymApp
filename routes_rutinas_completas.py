@@ -154,3 +154,31 @@ def obtener_todas_rutinas_completas():
             'error': 'Error al obtener las rutinas completas',
             'detalle': str(e)
         }), 400 
+
+@rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['DELETE'])
+def eliminar_rutina_completa(id):
+    try:
+        # Obtener la rutina
+        rutina = Rutina.query.get_or_404(id)
+        
+        # Eliminar todos los ejercicios asociados a la rutina
+        ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
+        for ejercicio in ejercicios:
+            # Eliminar todas las series asociadas al ejercicio
+            Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).delete()
+            db.session.delete(ejercicio)
+        
+        # Eliminar la rutina
+        db.session.delete(rutina)
+        db.session.commit()
+        
+        return jsonify({
+            'mensaje': 'Rutina completa eliminada exitosamente'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Error al eliminar la rutina completa',
+            'detalle': str(e)
+        }), 400 

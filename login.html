@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login con Google - GymApp</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        .login-container {
+            text-align: center;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        #debug-info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            text-align: left;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>GymApp Login</h1>
+        <div id="g_id_onload"
+             data-client_id="141974864608-vv1npi68mrtukpg7r7tc2cql201ijfb7.apps.googleusercontent.com"
+             data-callback="handleCredentialResponse"
+             data-auto_prompt="false"
+             data-context="signin">
+        </div>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-size="large"
+             data-theme="outline"
+             data-text="sign_in_with"
+             data-shape="rectangular"
+             data-logo_alignment="left">
+        </div>
+        <div id="debug-info">
+            <p>Origen actual: <span id="current-origin"></span></p>
+            <p>Estado: <span id="status">Esperando...</span></p>
+        </div>
+    </div>
+
+    <script>
+    // Mostrar el origen actual
+    document.getElementById('current-origin').textContent = window.location.origin;
+
+    function handleCredentialResponse(response) {
+        document.getElementById('status').textContent = 'Procesando login...';
+        
+        // Enviar el token al backend
+        fetch(window.location.origin + '/usuarios/google-login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                token: response.credential
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Success:', data);
+            document.getElementById('status').textContent = 'Login exitoso';
+            alert('Login exitoso: ' + JSON.stringify(data));
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+            document.getElementById('status').textContent = 'Error en el login';
+            alert('Error en el login: ' + error);
+        });
+    }
+
+    // Manejar errores de carga de Google Sign-In
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+        console.error('Error: ', msg, 'URL: ', url, 'Line: ', lineNo, 'Column: ', columnNo, 'Error object: ', error);
+        document.getElementById('status').textContent = 'Error al cargar Google Sign-In';
+        return false;
+    };
+    </script>
+</body>
+</html> 

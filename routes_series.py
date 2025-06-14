@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Serie
+from models import db, Serie, Ejercicio, EjercicioBase
 
 series_bp = Blueprint('series_bp', __name__)
 
@@ -22,7 +22,12 @@ def obtener_series():
         'id_series': s.id_series,
         'repeticiones': s.repeticiones,
         'peso_kg': s.peso_kg,
-        'ejercicios_id': s.ejercicios_id
+        'ejercicios_id': s.ejercicios_id,
+        'ejercicio': {
+            'id': s.ejercicio.id_ejercicios,
+            'nombre': s.ejercicio.ejercicio_base.nombre,
+            'descripcion': s.ejercicio.ejercicio_base.descripcion
+        }
     } for s in series])
 
 @series_bp.route('/series/<int:id>', methods=['GET'])
@@ -32,7 +37,12 @@ def obtener_serie(id):
         'id_series': serie.id_series,
         'repeticiones': serie.repeticiones,
         'peso_kg': serie.peso_kg,
-        'ejercicios_id': serie.ejercicios_id
+        'ejercicios_id': serie.ejercicios_id,
+        'ejercicio': {
+            'id': serie.ejercicio.id_ejercicios,
+            'nombre': serie.ejercicio.ejercicio_base.nombre,
+            'descripcion': serie.ejercicio.ejercicio_base.descripcion
+        }
     })
 
 @series_bp.route('/series/<int:id>', methods=['PUT'])

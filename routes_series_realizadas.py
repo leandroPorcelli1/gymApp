@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, SerieRealizada
+from models import db, SerieRealizada, EntrenamientoRealizado, Ejercicio, EjercicioBase
 
 series_realizadas_bp = Blueprint('series_realizadas_bp', __name__)
 
@@ -22,7 +22,12 @@ def obtener_series_realizadas():
         'id_series_realizadas': s.id_series_realizadas,
         'entrenamientos_realizados_id': s.entrenamientos_realizados_id,
         'repeticiones': s.repeticiones,
-        'peso_kg': s.peso_kg
+        'peso_kg': s.peso_kg,
+        'ejercicio': {
+            'id': s.entrenamiento_realizado.ejercicio.id_ejercicios,
+            'nombre': s.entrenamiento_realizado.ejercicio.ejercicio_base.nombre,
+            'descripcion': s.entrenamiento_realizado.ejercicio.ejercicio_base.descripcion
+        }
     } for s in series])
 
 @series_realizadas_bp.route('/series_realizadas/<int:id>', methods=['GET'])
@@ -32,7 +37,12 @@ def obtener_serie_realizada(id):
         'id_series_realizadas': serie.id_series_realizadas,
         'entrenamientos_realizados_id': serie.entrenamientos_realizados_id,
         'repeticiones': serie.repeticiones,
-        'peso_kg': serie.peso_kg
+        'peso_kg': serie.peso_kg,
+        'ejercicio': {
+            'id': serie.entrenamiento_realizado.ejercicio.id_ejercicios,
+            'nombre': serie.entrenamiento_realizado.ejercicio.ejercicio_base.nombre,
+            'descripcion': serie.entrenamiento_realizado.ejercicio.ejercicio_base.descripcion
+        }
     })
 
 @series_realizadas_bp.route('/series_realizadas/<int:id>', methods=['PUT'])

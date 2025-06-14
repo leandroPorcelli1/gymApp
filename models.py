@@ -35,8 +35,18 @@ class NivelRutina(db.Model):
 
     rutinas = db.relationship('Rutina', backref='nivel', cascade="all, delete-orphan")
 
+class EjercicioBase(db.Model):
+    __tablename__ = 'ejercicios_base'
+    id_ejercicios_base = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    nombre = db.Column(db.String, nullable=False)
+    descripcion = db.Column(db.String)
+    
+    ejercicios = db.relationship('Ejercicio', backref='ejercicio_base', cascade="all, delete-orphan")
+
 class Ejercicio(db.Model):
     __tablename__ = 'ejercicios'
+    id_ejercicios = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    ejercicios_base_id = db.Column(db.Integer, db.ForeignKey('ejercicios_base.id_ejercicios_base', ondelete='CASCADE'), nullable=False)
     id_ejercicios = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     descripcion = db.Column(db.String(500))

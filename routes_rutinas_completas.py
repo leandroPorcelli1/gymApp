@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Rutina, Ejercicio, Serie
+from models import db, Rutina, Ejercicio, Serie, EjercicioBase
 
 rutinas_completas_bp = Blueprint('rutinas_completas_bp', __name__)
 
@@ -22,8 +22,7 @@ def crear_rutina_completa():
         ejercicios_creados = []
         for ejercicio_data in data['ejercicios']:
             ejercicio = Ejercicio(
-                nombre=ejercicio_data['nombre'],
-                descripcion=ejercicio_data.get('descripcion'),
+                ejercicios_base_id=ejercicio_data['ejercicios_base_id'],
                 rutinas_id=rutina.id_rutinas
             )
             db.session.add(ejercicio)
@@ -44,10 +43,12 @@ def crear_rutina_completa():
                     'peso_kg': serie.peso_kg
                 })
             
+            # Obtener la información del ejercicio base
+            ejercicio_base = EjercicioBase.query.get(ejercicio_data['ejercicios_base_id'])
             ejercicios_creados.append({
                 'id': ejercicio.id_ejercicios,
-                'nombre': ejercicio.nombre,
-                'descripcion': ejercicio.descripcion,
+                'nombre': ejercicio_base.nombre,
+                'descripcion': ejercicio_base.descripcion,
                 'series': series_creadas
             })
         
@@ -87,8 +88,9 @@ def obtener_rutina_completa(id):
             
             ejercicios_completos.append({
                 'id': ejercicio.id_ejercicios,
-                'nombre': ejercicio.nombre,
-                'descripcion': ejercicio.descripcion,
+                'ejercicios_base_id': ejercicio.ejercicios_base_id,
+                'nombre': ejercicio.ejercicio_base.nombre,
+                'descripcion': ejercicio.ejercicio_base.descripcion,
                 'series': [{
                     'id': serie.id_series,
                     'repeticiones': serie.repeticiones,
@@ -109,7 +111,7 @@ def obtener_rutina_completa(id):
         return jsonify({
             'error': 'Error al obtener la rutina completa',
             'detalle': str(e)
-        }), 400 
+        }), 400
 
 @rutinas_completas_bp.route('/rutinas/completas', methods=['GET'])
 def obtener_todas_rutinas_completas():
@@ -129,8 +131,9 @@ def obtener_todas_rutinas_completas():
                 
                 ejercicios_completos.append({
                     'id': ejercicio.id_ejercicios,
-                    'nombre': ejercicio.nombre,
-                    'descripcion': ejercicio.descripcion,
+                    'ejercicios_base_id': ejercicio.ejercicios_base_id,
+                    'nombre': ejercicio.ejercicio_base.nombre,
+                    'descripcion': ejercicio.ejercicio_base.descripcion,
                     'series': [{
                         'id': serie.id_series,
                         'repeticiones': serie.repeticiones,

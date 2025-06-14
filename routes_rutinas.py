@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Rutina
+from models import db, Rutina, Ejercicio, EjercicioBase
 
 rutinas_bp = Blueprint('rutinas_bp', __name__)
 
@@ -19,23 +19,55 @@ def crear_rutina():
 @rutinas_bp.route('/rutinas', methods=['GET'])
 def obtener_rutinas():
     rutinas = Rutina.query.all()
-    return jsonify([{
-        'id_rutinas': r.id_rutinas,
-        'nombre': r.nombre,
-        'descripcion': r.descripcion,
-        'usuarios_id': r.usuarios_id,
-        'nivel_rutinas_id': r.nivel_rutinas_id
-    } for r in rutinas])
+    rutinas_info = []
+    
+    for rutina in rutinas:
+        # Obtener los ejercicios asociados a la rutina
+        ejercicios = Ejercicio.query.filter_by(rutinas_id=rutina.id_rutinas).all()
+        ejercicios_info = []
+        
+        for ejercicio in ejercicios:
+            ejercicios_info.append({
+                'id': ejercicio.id_ejercicios,
+                'ejercicios_base_id': ejercicio.ejercicios_base_id,
+                'nombre': ejercicio.ejercicio_base.nombre,
+                'descripcion': ejercicio.ejercicio_base.descripcion
+            })
+        
+        rutinas_info.append({
+            'id_rutinas': rutina.id_rutinas,
+            'nombre': rutina.nombre,
+            'descripcion': rutina.descripcion,
+            'usuarios_id': rutina.usuarios_id,
+            'nivel_rutinas_id': rutina.nivel_rutinas_id,
+            'ejercicios': ejercicios_info
+        })
+    
+    return jsonify(rutinas_info)
 
 @rutinas_bp.route('/rutinas/<int:id>', methods=['GET'])
 def obtener_rutina(id):
     rutina = Rutina.query.get_or_404(id)
+    
+    # Obtener los ejercicios asociados a la rutina
+    ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
+    ejercicios_info = []
+    
+    for ejercicio in ejercicios:
+        ejercicios_info.append({
+            'id': ejercicio.id_ejercicios,
+            'ejercicios_base_id': ejercicio.ejercicios_base_id,
+            'nombre': ejercicio.ejercicio_base.nombre,
+            'descripcion': ejercicio.ejercicio_base.descripcion
+        })
+    
     return jsonify({
         'id_rutinas': rutina.id_rutinas,
         'nombre': rutina.nombre,
         'descripcion': rutina.descripcion,
         'usuarios_id': rutina.usuarios_id,
-        'nivel_rutinas_id': rutina.nivel_rutinas_id
+        'nivel_rutinas_id': rutina.nivel_rutinas_id,
+        'ejercicios': ejercicios_info
     })
 
 @rutinas_bp.route('/rutinas/<int:id>', methods=['PUT'])

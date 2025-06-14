@@ -19,7 +19,7 @@ class Usuario(db.Model):
 class Rutina(db.Model):
     __tablename__ = 'rutinas'
     id_rutinas = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    nombre = db.Column(db.String, nullable=False, unique=True)
+    nombre = db.Column(db.String, nullable=False)
     descripcion = db.Column(db.String)
     usuarios_id = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuarios', ondelete='CASCADE'), nullable=False)
     nivel_rutinas_id = db.Column(db.Integer, db.ForeignKey('nivel_rutinas.id_nivel_rutinas', ondelete='RESTRICT'), nullable=False)
@@ -34,11 +34,18 @@ class NivelRutina(db.Model):
 
     rutinas = db.relationship('Rutina', backref='nivel', cascade="all, delete-orphan")
 
+class EjercicioBase(db.Model):
+    __tablename__ = 'ejercicios_base'
+    id_ejercicios_base = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    nombre = db.Column(db.String, nullable=False)
+    descripcion = db.Column(db.String)
+    
+    ejercicios = db.relationship('Ejercicio', backref='ejercicio_base', cascade="all, delete-orphan")
+
 class Ejercicio(db.Model):
     __tablename__ = 'ejercicios'
     id_ejercicios = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    nombre = db.Column(db.String, nullable=False)
-    descripcion = db.Column(db.String)
+    ejercicios_base_id = db.Column(db.Integer, db.ForeignKey('ejercicios_base.id_ejercicios_base', ondelete='CASCADE'), nullable=False)
     rutinas_id = db.Column(db.Integer, db.ForeignKey('rutinas.id_rutinas', ondelete='CASCADE'), nullable=False)
 
     series = db.relationship('Serie', backref='ejercicio', cascade="all, delete-orphan")

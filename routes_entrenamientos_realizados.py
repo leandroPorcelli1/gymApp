@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, EntrenamientoRealizado
+from models import db, EntrenamientoRealizado, Ejercicio, EjercicioBase, SerieRealizada
 
 entrenamientos_realizados_bp = Blueprint('entrenamientos_realizados_bp', __name__)
 
@@ -17,19 +17,53 @@ def crear_entrenamiento_realizado():
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados', methods=['GET'])
 def obtener_entrenamientos_realizados():
     realizados = EntrenamientoRealizado.query.all()
-    return jsonify([{
-        'id_entrenamientos_realizados': r.id_entrenamientos_realizados,
-        'entrenamientos_id': r.entrenamientos_id,
-        'ejercicios_id': r.ejercicios_id
-    } for r in realizados])
+    realizados_info = []
+    
+    for realizado in realizados:
+        # Obtener las series realizadas
+        series = SerieRealizada.query.filter_by(entrenamientos_realizados_id=realizado.id_entrenamientos_realizados).all()
+        series_info = [{
+            'id': serie.id_series_realizadas,
+            'repeticiones': serie.repeticiones,
+            'peso_kg': serie.peso_kg
+        } for serie in series]
+        
+        realizados_info.append({
+            'id_entrenamientos_realizados': realizado.id_entrenamientos_realizados,
+            'entrenamientos_id': realizado.entrenamientos_id,
+            'ejercicios_id': realizado.ejercicios_id,
+            'ejercicio': {
+                'id': realizado.ejercicio.id_ejercicios,
+                'nombre': realizado.ejercicio.ejercicio_base.nombre,
+                'descripcion': realizado.ejercicio.ejercicio_base.descripcion
+            },
+            'series_realizadas': series_info
+        })
+    
+    return jsonify(realizados_info)
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['GET'])
 def obtener_entrenamiento_realizado(id):
     realizado = EntrenamientoRealizado.query.get_or_404(id)
+    
+    # Obtener las series realizadas
+    series = SerieRealizada.query.filter_by(entrenamientos_realizados_id=id).all()
+    series_info = [{
+        'id': serie.id_series_realizadas,
+        'repeticiones': serie.repeticiones,
+        'peso_kg': serie.peso_kg
+    } for serie in series]
+    
     return jsonify({
         'id_entrenamientos_realizados': realizado.id_entrenamientos_realizados,
         'entrenamientos_id': realizado.entrenamientos_id,
-        'ejercicios_id': realizado.ejercicios_id
+        'ejercicios_id': realizado.ejercicios_id,
+        'ejercicio': {
+            'id': realizado.ejercicio.id_ejercicios,
+            'nombre': realizado.ejercicio.ejercicio_base.nombre,
+            'descripcion': realizado.ejercicio.ejercicio_base.descripcion
+        },
+        'series_realizadas': series_info
     })
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['PUT'])

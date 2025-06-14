@@ -63,4 +63,40 @@
     "error": "Error al crear el usuario",
     "detalle": "Mensaje de error específico"
   }
+  ```
+
+## 4. Google Login (POST)
+- **Método**: `POST`
+- **URL**: `http://localhost:5000/usuarios/google-login`
+- **Headers**:
+  - `Content-Type: application/json`
+- **Body** (raw JSON):
+  ```json
+  {
+    "token": "token_de_google"
+  }
+  ```
+- **Respuesta exitosa**: `200 OK`
+  ```json
+  {
+    "mensaje": "Login exitoso",
+    "usuario": {
+      "id_usuarios": 1,
+      "nombre": "Nombre del Usuario",
+      "email": "usuario@ejemplo.com",
+      "auth_provider": "google"
+    }
+  }
+  ```
+- **Respuesta de error**: `400 Bad Request`
+  ```json
+  {
+    "error": "Token inválido"
+  }
+  ```
+- **Respuesta de error**: `500 Internal Server Error`
+  ```json
+  {
+    "error": "Error en el servidor"
+  }
   ``` 

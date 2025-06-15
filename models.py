@@ -47,9 +47,6 @@ class Ejercicio(db.Model):
     __tablename__ = 'ejercicios'
     id_ejercicios = db.Column(db.Integer, primary_key=True, autoincrement=True)
     ejercicios_base_id = db.Column(db.Integer, db.ForeignKey('ejercicios_base.id_ejercicios_base', ondelete='CASCADE'), nullable=False)
-    id_ejercicios = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100), nullable=False)
-    descripcion = db.Column(db.String(500))
     rutinas_id = db.Column(db.Integer, db.ForeignKey('rutinas.id_rutinas', ondelete='CASCADE'), nullable=False)
 
     series = db.relationship('Serie', backref='ejercicio', cascade="all, delete-orphan")

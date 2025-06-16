@@ -3,11 +3,16 @@ from models import db, Usuario
 from google.oauth2 import id_token
 from google.auth.transport import requests
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from werkzeug.exceptions import NotFound
+import jwt
 
 usuarios_bp = Blueprint('usuarios_bp', __name__)
+
+# JWT configuration
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')  
+JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=30)  
 
 @usuarios_bp.route('/usuarios', methods=['POST'])
 def crear_usuario():
@@ -323,6 +328,15 @@ def google_login():
             usuario.auth_provider = 'google'
             db.session.commit()
 
+        # Generate JWT token
+        token_payload = {
+            'user_id': usuario.id_usuarios,
+            'email': usuario.email,
+            'auth_provider': usuario.auth_provider,
+            'exp': datetime.utcnow() + JWT_ACCESS_TOKEN_EXPIRES
+        }
+        access_token = jwt.encode(token_payload, JWT_SECRET_KEY, algorithm='HS256')
+
         return jsonify({
             'mensaje': 'Login exitoso',
             'usuario': {
@@ -330,7 +344,9 @@ def google_login():
                 'nombre': usuario.nombre,
                 'email': usuario.email,
                 'auth_provider': usuario.auth_provider
-            }
+            },
+            'access_token': access_token,
+            'expires_in': int(JWT_ACCESS_TOKEN_EXPIRES.total_seconds())
         }), 200
 
     except ValueError as e:

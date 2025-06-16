@@ -14,6 +14,9 @@ usuarios_bp = Blueprint('usuarios_bp', __name__)
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')  
 JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=30)  
 
+# Lista para almacenar tokens invalidados
+invalidated_tokens = set()
+
 @usuarios_bp.route('/usuarios', methods=['POST'])
 def crear_usuario():
     try:
@@ -365,4 +368,34 @@ def google_login():
         return jsonify({
             'error': 'Error inesperado',
             'detalle': str(e)
-        }), 500 
+        }), 500
+
+@usuarios_bp.route('/usuarios/logout', methods=['POST'])
+def logout():
+    try:
+        # Obtener el token del header de autorización
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({
+                'error': 'Token no proporcionado',
+                'detalle': 'Se requiere un token de autenticación'
+            }), 401
+
+        token = auth_header.split(' ')[1]
+        
+        # Agregar el token a la lista de tokens invalidados
+        invalidated_tokens.add(token)
+        
+        return jsonify({
+            'mensaje': 'Sesión cerrada exitosamente'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'error': 'Error al cerrar sesión',
+            'detalle': str(e)
+        }), 500
+
+# Función para verificar si un token está invalidado
+def is_token_invalidated(token):
+    return token in invalidated_tokens 

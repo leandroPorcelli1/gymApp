@@ -272,4 +272,160 @@ def obtener_rutinas_usuario(usuario_id):
         return jsonify({
             'error': 'Error inesperado',
             'detalle': str(e)
+        }), 500
+
+@rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['PUT'])
+def modificar_rutina_completa(id):
+    try:
+        rutina = Rutina.query.get_or_404(id)
+        data = request.json
+
+        if not data:
+            return jsonify({
+                'error': 'Datos no proporcionados',
+                'detalle': 'Se requiere un cuerpo JSON con los datos a modificar'
+            }), 400
+
+        # Modificar datos básicos de la rutina si se proporcionan
+        if 'nombre' in data:
+            rutina.nombre = data['nombre']
+        if 'descripcion' in data:
+            rutina.descripcion = data['descripcion']
+        if 'nivel_rutinas_id' in data:
+            rutina.nivel_rutinas_id = data['nivel_rutinas_id']
+
+        # Modificar ejercicios si se proporcionan
+        if 'ejercicios' in data:
+            # Eliminar ejercicios existentes si se proporciona una lista nueva
+            ejercicios_existentes = Ejercicio.query.filter_by(rutinas_id=id).all()
+            for ejercicio in ejercicios_existentes:
+                # Eliminar series asociadas
+                Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).delete()
+                db.session.delete(ejercicio)
+
+            # Crear nuevos ejercicios
+            for ejercicio_data in data['ejercicios']:
+                if 'ejercicios_base_id' not in ejercicio_data:
+                    return jsonify({
+                        'error': 'Datos incompletos',
+                        'detalle': 'Cada ejercicio debe tener un ejercicios_base_id'
+                    }), 400
+
+                ejercicio_base = EjercicioBase.query.get(ejercicio_data['ejercicios_base_id'])
+                if not ejercicio_base:
+                    return jsonify({
+                        'error': 'Ejercicio no encontrado',
+                        'detalle': f'No existe un ejercicio base con ID {ejercicio_data["ejercicios_base_id"]}'
+                    }), 404
+
+                ejercicio = Ejercicio(
+                    ejercicios_base_id=ejercicio_data['ejercicios_base_id'],
+                    rutinas_id=rutina.id_rutinas
+                )
+                db.session.add(ejercicio)
+                db.session.flush()
+
+                # Crear series para el ejercicio
+                if 'series' in ejercicio_data:
+                    for serie_data in ejercicio_data['series']:
+                        if 'repeticiones' not in serie_data or 'peso_kg' not in serie_data:
+                            return jsonify({
+                                'error': 'Datos incompletos',
+                                'detalle': 'Cada serie debe tener repeticiones y peso_kg'
+                            }), 400
+
+                        serie = Serie(
+                            repeticiones=serie_data['repeticiones'],
+                            peso_kg=serie_data['peso_kg'],
+                            ejercicios_id=ejercicio.id_ejercicios
+                        )
+                        db.session.add(serie)
+
+        db.session.commit()
+
+        # Obtener la rutina actualizada para la respuesta
+        ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
+        ejercicios_completos = []
+        for ejercicio in ejercicios:
+            series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
+            ejercicios_completos.append({
+                'id': ejercicio.id_ejercicios,
+                'ejercicios_base_id': ejercicio.ejercicios_base_id,
+                'nombre': ejercicio.ejercicio_base.nombre,
+                'descripcion': ejercicio.ejercicio_base.descripcion,
+                'series': [{
+                    'id': serie.id_series,
+                    'repeticiones': serie.repeticiones,
+                    'peso_kg': serie.peso_kg
+                } for serie in series]
+            })
+
+        return jsonify({
+            'mensaje': 'Rutina modificada exitosamente',
+            'rutina': {
+                'id': rutina.id_rutinas,
+                'nombre': rutina.nombre,
+                'descripcion': rutina.descripcion,
+                'usuarios_id': rutina.usuarios_id,
+                'nivel_rutinas_id': rutina.nivel_rutinas_id,
+                'ejercicios': ejercicios_completos
+            }
+        })
+
+    except NotFound:
+        return jsonify({
+            'error': 'Rutina no encontrada',
+            'detalle': f'No existe una rutina con ID {id}'
+        }), 404
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Error en la base de datos',
+            'detalle': str(e)
+        }), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Error inesperado',
+            'detalle': str(e)
+        }), 500
+
+@rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['DELETE'])
+def eliminar_rutina_completa(id):
+    try:
+        rutina = Rutina.query.get_or_404(id)
+        
+        # Obtener todos los ejercicios de la rutina
+        ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
+        
+        # Eliminar todas las series asociadas a los ejercicios
+        for ejercicio in ejercicios:
+            Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).delete()
+            db.session.delete(ejercicio)
+        
+        # Eliminar la rutina
+        db.session.delete(rutina)
+        db.session.commit()
+        
+        return jsonify({
+            'mensaje': 'Rutina eliminada exitosamente',
+            'detalle': f'Se eliminó la rutina con ID {id} y todos sus ejercicios y series asociados'
+        }), 200
+        
+    except NotFound:
+        return jsonify({
+            'error': 'Rutina no encontrada',
+            'detalle': f'No existe una rutina con ID {id}'
+        }), 404
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Error en la base de datos',
+            'detalle': str(e)
+        }), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Error inesperado',
+            'detalle': str(e)
         }), 500 

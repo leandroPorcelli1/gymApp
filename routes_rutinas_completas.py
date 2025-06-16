@@ -81,6 +81,8 @@ def crear_rutina_completa():
                     ejercicios_id=ejercicio.id_ejercicios
                 )
                 db.session.add(serie)
+                db.session.flush()  
+
                 series_creadas.append({
                     'id': serie.id_series,
                     'repeticiones': serie.repeticiones,

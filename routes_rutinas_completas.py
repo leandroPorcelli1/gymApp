@@ -296,50 +296,76 @@ def modificar_rutina_completa(id):
 
         # Modificar ejercicios si se proporcionan
         if 'ejercicios' in data:
-            # Eliminar ejercicios existentes si se proporciona una lista nueva
+            # Obtener ejercicios existentes
             ejercicios_existentes = Ejercicio.query.filter_by(rutinas_id=id).all()
-            for ejercicio in ejercicios_existentes:
-                # Eliminar series asociadas
-                Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).delete()
-                db.session.delete(ejercicio)
+            ejercicios_existentes_dict = {e.id_ejercicios: e for e in ejercicios_existentes}
 
-            # Crear nuevos ejercicios
             for ejercicio_data in data['ejercicios']:
-                if 'ejercicios_base_id' not in ejercicio_data:
+                # Si el ejercicio tiene id_ejercicios, es una modificación
+                if 'id_ejercicios' in ejercicio_data:
+                    ejercicio = ejercicios_existentes_dict.get(ejercicio_data['id_ejercicios'])
+                    if not ejercicio:
+                        return jsonify({
+                            'error': 'Ejercicio no encontrado',
+                            'detalle': f'No existe un ejercicio con ID {ejercicio_data["id_ejercicios"]} en esta rutina'
+                        }), 404
+
+                    # Modificar series si se proporcionan
+                    if 'series' in ejercicio_data:
+                        # Eliminar series existentes
+                        Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).delete()
+                        
+                        # Crear nuevas series
+                        for serie_data in ejercicio_data['series']:
+                            if 'repeticiones' not in serie_data or 'peso_kg' not in serie_data:
+                                return jsonify({
+                                    'error': 'Datos incompletos',
+                                    'detalle': 'Cada serie debe tener repeticiones y peso_kg'
+                                }), 400
+
+                            serie = Serie(
+                                repeticiones=serie_data['repeticiones'],
+                                peso_kg=serie_data['peso_kg'],
+                                ejercicios_id=ejercicio.id_ejercicios
+                            )
+                            db.session.add(serie)
+
+                # Si no tiene id_ejercicios pero tiene ejercicios_base_id, es un nuevo ejercicio
+                elif 'ejercicios_base_id' in ejercicio_data:
+                    ejercicio_base = EjercicioBase.query.get(ejercicio_data['ejercicios_base_id'])
+                    if not ejercicio_base:
+                        return jsonify({
+                            'error': 'Ejercicio base no encontrado',
+                            'detalle': f'No existe un ejercicio base con ID {ejercicio_data["ejercicios_base_id"]}'
+                        }), 404
+
+                    ejercicio = Ejercicio(
+                        ejercicios_base_id=ejercicio_data['ejercicios_base_id'],
+                        rutinas_id=rutina.id_rutinas
+                    )
+                    db.session.add(ejercicio)
+                    db.session.flush()
+
+                    # Crear series para el nuevo ejercicio
+                    if 'series' in ejercicio_data:
+                        for serie_data in ejercicio_data['series']:
+                            if 'repeticiones' not in serie_data or 'peso_kg' not in serie_data:
+                                return jsonify({
+                                    'error': 'Datos incompletos',
+                                    'detalle': 'Cada serie debe tener repeticiones y peso_kg'
+                                }), 400
+
+                            serie = Serie(
+                                repeticiones=serie_data['repeticiones'],
+                                peso_kg=serie_data['peso_kg'],
+                                ejercicios_id=ejercicio.id_ejercicios
+                            )
+                            db.session.add(serie)
+                else:
                     return jsonify({
                         'error': 'Datos incompletos',
-                        'detalle': 'Cada ejercicio debe tener un ejercicios_base_id'
+                        'detalle': 'Cada ejercicio debe tener id_ejercicios (para modificar) o ejercicios_base_id (para crear)'
                     }), 400
-
-                ejercicio_base = EjercicioBase.query.get(ejercicio_data['ejercicios_base_id'])
-                if not ejercicio_base:
-                    return jsonify({
-                        'error': 'Ejercicio no encontrado',
-                        'detalle': f'No existe un ejercicio base con ID {ejercicio_data["ejercicios_base_id"]}'
-                    }), 404
-
-                ejercicio = Ejercicio(
-                    ejercicios_base_id=ejercicio_data['ejercicios_base_id'],
-                    rutinas_id=rutina.id_rutinas
-                )
-                db.session.add(ejercicio)
-                db.session.flush()
-
-                # Crear series para el ejercicio
-                if 'series' in ejercicio_data:
-                    for serie_data in ejercicio_data['series']:
-                        if 'repeticiones' not in serie_data or 'peso_kg' not in serie_data:
-                            return jsonify({
-                                'error': 'Datos incompletos',
-                                'detalle': 'Cada serie debe tener repeticiones y peso_kg'
-                            }), 400
-
-                        serie = Serie(
-                            repeticiones=serie_data['repeticiones'],
-                            peso_kg=serie_data['peso_kg'],
-                            ejercicios_id=ejercicio.id_ejercicios
-                        )
-                        db.session.add(serie)
 
         db.session.commit()
 
@@ -349,12 +375,12 @@ def modificar_rutina_completa(id):
         for ejercicio in ejercicios:
             series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
             ejercicios_completos.append({
-                'id': ejercicio.id_ejercicios,
+                'id_ejercicios': ejercicio.id_ejercicios,
                 'ejercicios_base_id': ejercicio.ejercicios_base_id,
                 'nombre': ejercicio.ejercicio_base.nombre,
                 'descripcion': ejercicio.ejercicio_base.descripcion,
                 'series': [{
-                    'id': serie.id_series,
+                    'id_series': serie.id_series,
                     'repeticiones': serie.repeticiones,
                     'peso_kg': serie.peso_kg
                 } for serie in series]
@@ -363,7 +389,7 @@ def modificar_rutina_completa(id):
         return jsonify({
             'mensaje': 'Rutina modificada exitosamente',
             'rutina': {
-                'id': rutina.id_rutinas,
+                'id_rutinas': rutina.id_rutinas,
                 'nombre': rutina.nombre,
                 'descripcion': rutina.descripcion,
                 'usuarios_id': rutina.usuarios_id,

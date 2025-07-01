@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
 
 # Cargar variables de entorno
 load_dotenv()
@@ -20,5 +21,13 @@ class Config:
 
     
     # Configuración de Turso
-    SQLALCHEMY_DATABASE_URI = f"sqlite+{os.getenv('TURSO_DATABASE_URI')}/?authToken={os.getenv('TURSO_DATABASE_TOKEN')}&secure=true&check_same_thread=false"    #SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(BASE_DIR, 'gymapp.db')
     
+    TURSO_DATABASE_URL = os.environ.get("TURSO_DATABASE_URL")
+    TURSO_AUTH_TOKEN = os.environ.get("TURSO_AUTH_TOKEN")
+
+    engine = create_engine(
+        f"sqlite+{TURSO_DATABASE_URL}?secure=true",
+        connect_args={
+            "auth_token": TURSO_AUTH_TOKEN,
+        },
+    )

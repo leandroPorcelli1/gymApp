@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from models import db, Ejercicio, EjercicioBase
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
+from security import required_token
+from models import Usuario
 
 ejercicios_bp = Blueprint('ejercicios_bp', __name__)
 
@@ -298,8 +300,14 @@ def obtener_ejercicios_base():
         }), 500
 
 @ejercicios_bp.route('/ejercicios-base', methods=['POST'])
-def crear_ejercicio_base():
+@required_token
+def crear_ejercicio_base(token_payload):
     try:
+        # Verificar que el usuario existe
+        usuario = Usuario.query.get(token_payload.get('id_usuario'))
+        if not usuario:
+            return {'error': 'Usuario no encontrado', 'detalle': 'El usuario autenticado no existe.'}, 404
+
         data = request.json
         
         if not data:

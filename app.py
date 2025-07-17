@@ -30,10 +30,6 @@ app.register_blueprint(ejercicios_bp)
 #app.register_blueprint(nivel_rutinas_bp)
 app.register_blueprint(rutinas_completas_bp)
 
-@app.route('/login')
-def login_page():
-    return send_file('login.html')
-
 if __name__ == '__main__':
 
     app.run(debug=True)

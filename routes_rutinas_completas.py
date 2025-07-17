@@ -2,10 +2,12 @@ from flask import Blueprint, request, jsonify
 from models import db, Rutina, Ejercicio, Serie, EjercicioBase
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
+from security import required_token
 
 rutinas_completas_bp = Blueprint('rutinas_completas_bp', __name__)
 
 @rutinas_completas_bp.route('/rutinas/completas', methods=['POST'])
+@required_token
 def crear_rutina_completa():
     try:
         data = request.json
@@ -218,8 +220,12 @@ def obtener_todas_rutinas_completas():
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/usuario/<int:usuario_id>', methods=['GET'])
-def obtener_rutinas_usuario(usuario_id):
+@required_token
+def obtener_rutinas_usuario(usuario_id, token_payload):
     try:
+        # Verificar que el id del token coincida con el usuario_id del endpoint
+        if token_payload.get('id_usuario') != usuario_id:
+            return {'error': 'No autorizado', 'detalle': 'No puedes ver rutinas de otro usuario.'}, 403
         # Obtener todas las rutinas del usuario
         rutinas = Rutina.query.filter_by(usuarios_id=usuario_id).all()
         
@@ -277,9 +283,13 @@ def obtener_rutinas_usuario(usuario_id):
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['PUT'])
-def modificar_rutina_completa(id):
+@required_token
+def modificar_rutina_completa(id, token_payload):
     try:
         rutina = Rutina.query.get_or_404(id)
+        # Verificar que el usuario autenticado es el dueño de la rutina
+        if rutina.usuarios_id != token_payload.get('id_usuario'):
+            return {'error': 'No autorizado', 'detalle': 'No puedes modificar rutinas de otro usuario.'}, 403
         data = request.json
 
         if not data:
@@ -419,9 +429,13 @@ def modificar_rutina_completa(id):
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['DELETE'])
-def eliminar_rutina_completa(id):
+@required_token
+def eliminar_rutina_completa(id, token_payload):
     try:
         rutina = Rutina.query.get_or_404(id)
+        # Verificar que el usuario autenticado es el dueño de la rutina
+        if rutina.usuarios_id != token_payload.get('id_usuario'):
+            return {'error': 'No autorizado', 'detalle': 'No puedes eliminar rutinas de otro usuario.'}, 403
         
         # Obtener todos los ejercicios de la rutina
         ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()

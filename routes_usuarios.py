@@ -7,15 +7,11 @@ from datetime import datetime, timedelta
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from werkzeug.exceptions import NotFound
 import jwt
+from security import create_token, verify_token, required_token, is_token_invalidated
 
 usuarios_bp = Blueprint('usuarios_bp', __name__)
 
-# JWT configuration
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')  
-JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=30)  
 
-# Lista para almacenar tokens invalidados
-invalidated_tokens = set()
 
 @usuarios_bp.route('/usuarios', methods=['POST'])
 def crear_usuario():
@@ -151,8 +147,15 @@ def obtener_usuario(id):
         }), 500
 
 @usuarios_bp.route('/usuarios/<int:id>', methods=['PUT'])
-def actualizar_usuario(id):
+@required_token
+def actualizar_usuario(id, payload):
     try:
+        # Verificar que el id del token coincida con el id del endpoint
+        if payload.get('id_usuario') != id:
+            return jsonify({
+                'error': 'No autorizado',
+                'detalle': 'No puedes modificar datos de otro usuario.'
+            }), 403
         usuario = Usuario.query.get_or_404(id)
         data = request.json
         
@@ -238,8 +241,15 @@ def actualizar_usuario(id):
         }), 500
 
 @usuarios_bp.route('/usuarios/<int:id>', methods=['DELETE'])
-def eliminar_usuario(id):
+@required_token
+def eliminar_usuario(id, payload):
     try:
+        # Verificar que el id del token coincida con el id del endpoint
+        if payload.get('id_usuario') != id:
+            return jsonify({
+                'error': 'No autorizado',
+                'detalle': 'No puedes eliminar otro usuario.'
+            }), 403
         usuario = Usuario.query.get_or_404(id)
         
         # Guardar información del usuario antes de eliminarlo
@@ -331,14 +341,7 @@ def google_login():
             usuario.auth_provider = 'google'
             db.session.commit()
 
-        # Generate JWT token
-        token_payload = {
-            'user_id': usuario.id_usuarios,
-            'email': usuario.email,
-            'auth_provider': usuario.auth_provider,
-            'exp': datetime.utcnow() + JWT_ACCESS_TOKEN_EXPIRES
-        }
-        access_token = jwt.encode(token_payload, JWT_SECRET_KEY, algorithm='HS256')
+        access_token = create_token(usuario.id_usuarios, usuario.email, usuario.auth_provider)
 
         return jsonify({
             'mensaje': 'Login exitoso',
@@ -349,7 +352,6 @@ def google_login():
                 'auth_provider': usuario.auth_provider
             },
             'access_token': access_token,
-            'expires_in': int(JWT_ACCESS_TOKEN_EXPIRES.total_seconds())
         }), 200
 
     except ValueError as e:
@@ -371,6 +373,7 @@ def google_login():
         }), 500
 
 @usuarios_bp.route('/usuarios/logout', methods=['POST'])
+@required_token
 def logout():
     try:
         # Obtener el token del header de autorización
@@ -383,8 +386,12 @@ def logout():
 
         token = auth_header.split(' ')[1]
         
-        # Agregar el token a la lista de tokens invalidados
-        invalidated_tokens.add(token)
+        # Usar is_token_invalidated de security.py
+        if is_token_invalidated(token):
+            return jsonify({'error': 'Token ya invalidado'}), 401
+        
+        # Invalidar el token usando la función de security.py
+        is_token_invalidated.invalidate(token)
         
         return jsonify({
             'mensaje': 'Sesión cerrada exitosamente'
@@ -394,8 +401,4 @@ def logout():
         return jsonify({
             'error': 'Error al cerrar sesión',
             'detalle': str(e)
-        }), 500
-
-# Función para verificar si un token está invalidado
-def is_token_invalidated(token):
-    return token in invalidated_tokens 
+        }), 500 

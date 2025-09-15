@@ -125,6 +125,7 @@ def crear_rutina_completa():
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['GET'])
+@required_token
 def obtener_rutina_completa(id):
     try:
         rutina = Rutina.query.get_or_404(id)
@@ -173,6 +174,7 @@ def obtener_rutina_completa(id):
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas', methods=['GET'])
+@required_token
 def obtener_todas_rutinas_completas():
     try:
         rutinas = Rutina.query.all()

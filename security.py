@@ -27,8 +27,8 @@ def create_token(id_usuario, email, auth_provider):
         "id_usuario": id_usuario,
         "email": email,
         "auth_provider": auth_provider,
-        "exp": datetime.datetime.now(tz) + datetime.timedelta(hours=24),
-        "iat": datetime.datetime.now(tz)
+        "exp": datetime.now(tz) + timedelta(hours=24),
+        "iat": datetime.now(tz)
     }
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm='HS256')
 

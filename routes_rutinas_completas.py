@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Rutina, Ejercicio, Serie, EjercicioBase, Entrenamiento, EntrenamientoRealizado
+from models import db, Rutina, Ejercicio, Serie, EjercicioBase, Entrenamiento, EntrenamientoRealizado, SerieRealizada
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
 from security import required_token
@@ -487,25 +487,18 @@ def modificar_rutina_completa(id):
 def eliminar_rutina_completa(id):
     try:
         rutina = Rutina.query.get_or_404(id)
-        # Verificar que el usuario autenticado es el dueño de la rutina
-        if (not rutina.usuarios_id):
-            return {'error': 'No autorizado', 'detalle': 'No puedes eliminar rutinas de otro usuario.'}, 403
+        # # --- Lógica de Seguridad (para cuando se reactive @required_token) ---
+        # # Verificar que el usuario autenticado es el dueño de la rutina
+        # if rutina.usuarios_id != token_payload.get('id_usuario'):
+        #     return jsonify({'error': 'No autorizado', 'detalle': 'No puedes eliminar rutinas de otro usuario.'}), 403
 
-        # Obtener todos los ejercicios de la rutina
-        ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
 
-        # Eliminar todas las series asociadas a los ejercicios
-        for ejercicio in ejercicios:
-            Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).delete()
-            db.session.delete(ejercicio)
-
-        # Eliminar la rutina
         db.session.delete(rutina)
         db.session.commit()
 
         return jsonify({
             'mensaje': 'Rutina eliminada exitosamente',
-            'detalle': f'Se eliminó la rutina con ID {id} y todos sus ejercicios y series asociados'
+            'detalle': f'Se eliminó la rutina con ID {id} y todos sus datos asociados (ejercicios, series y entrenamientos realizados).'
         }), 200
 
     except NotFound:

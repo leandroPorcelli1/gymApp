@@ -285,7 +285,8 @@ def obtener_ejercicios_base():
         return jsonify([{
             'id_ejercicios_base': e.id_ejercicios_base,
             'nombre': e.nombre,
-            'descripcion': e.descripcion
+            'descripcion': e.descripcion,
+            'video_url': e.video_url
         } for e in ejercicios])
         
     except SQLAlchemyError as e:
@@ -334,13 +335,15 @@ def crear_ejercicio_base():
             for ejercicio_data in data:
                 ejercicio = EjercicioBase(
                     nombre=ejercicio_data['nombre'],
-                    descripcion=ejercicio_data.get('descripcion')
+                    descripcion=ejercicio_data.get('descripcion'),
+                    video_url=ejercicio_data.get('video_url')
                 )
                 db.session.add(ejercicio)
                 ejercicios_creados.append({
                     'id': ejercicio.id_ejercicios_base,
                     'nombre': ejercicio.nombre,
-                    'descripcion': ejercicio.descripcion
+                    'descripcion': ejercicio.descripcion,
+                    'video_url': ejercicio.video_url
                 })
             db.session.commit()
             
@@ -358,7 +361,8 @@ def crear_ejercicio_base():
                 
             ejercicio = EjercicioBase(
                 nombre=data['nombre'],
-                descripcion=data.get('descripcion')
+                descripcion=data.get('descripcion'),
+                video_url=data.get('video_url')
             )
             db.session.add(ejercicio)
             db.session.commit()
@@ -368,7 +372,8 @@ def crear_ejercicio_base():
                 'ejercicio': {
                     'id': ejercicio.id_ejercicios_base,
                     'nombre': ejercicio.nombre,
-                    'descripcion': ejercicio.descripcion
+                    'descripcion': ejercicio.descripcion,
+                    'video_url': ejercicio.video_url
                 }
             }), 201
             

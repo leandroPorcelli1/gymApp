@@ -40,6 +40,7 @@ class EjercicioBase(db.Model):
     id_ejercicios_base = db.Column(db.Integer, primary_key=True, autoincrement=True)
     nombre = db.Column(db.String, nullable=False)
     descripcion = db.Column(db.String)
+    video_url = db.Column(db.String, nullable=True)
     
     ejercicios = db.relationship('Ejercicio', backref='ejercicio_base', cascade="all, delete-orphan")
 

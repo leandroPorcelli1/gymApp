@@ -10,7 +10,7 @@ entrenamientos_realizados_bp = Blueprint('entrenamientos_realizados_bp', __name_
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados', methods=['POST'])
-@required_token
+# @required_token
 def crear_entrenamiento_realizados():
     data = request.json
     if not data:
@@ -127,7 +127,7 @@ def crear_entrenamiento_realizados():
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados', methods=['GET'])
-@required_token
+# @required_token
 def obtener_entrenamientos_realizados():
     try:
         realizados = EntrenamientoRealizado.query.all()
@@ -162,7 +162,7 @@ def obtener_entrenamientos_realizados():
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['GET'])
-@required_token
+# @required_token
 def obtener_entrenamiento_realizado(id):
     realizado = EntrenamientoRealizado.query.get_or_404(id)
     ejercicio = Ejercicio.query.get(realizado.ejercicios_id)
@@ -187,7 +187,7 @@ def obtener_entrenamiento_realizado(id):
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['PUT'])
-@required_token
+# @required_token
 def actualizar_entrenamiento_completo(id):
     entrenamiento = Entrenamiento.query.get_or_404(id)
     data = request.json
@@ -259,7 +259,7 @@ def actualizar_entrenamiento_completo(id):
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['DELETE'])
-@required_token
+# @required_token
 def eliminar_entrenamiento_realizado(id):
     realizado = Entrenamiento.query.get_or_404(id)
     db.session.delete(realizado)

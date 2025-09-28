@@ -7,7 +7,7 @@ from security import required_token
 rutinas_completas_bp = Blueprint('rutinas_completas_bp', __name__)
 
 @rutinas_completas_bp.route('/rutinas/completas', methods=['POST'])
-@required_token
+# @required_token
 def crear_rutina_completa():
     try:
         data = request.json
@@ -125,7 +125,7 @@ def crear_rutina_completa():
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['GET'])
-@required_token
+# @required_token
 def obtener_rutina_completa(id):
     try:
         rutina = Rutina.query.get_or_404(id)
@@ -174,7 +174,7 @@ def obtener_rutina_completa(id):
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas', methods=['GET'])
-@required_token
+# @required_token
 def obtener_todas_rutinas_completas():
     try:
         rutinas = Rutina.query.all()
@@ -222,7 +222,7 @@ def obtener_todas_rutinas_completas():
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/usuario/<int:usuario_id>', methods=['GET'])
-@required_token
+# @required_token
 def obtener_rutinas_usuario(usuario_id, token_payload):
     try:
         # Verificar que el id del token coincida con el usuario_id del endpoint
@@ -285,7 +285,7 @@ def obtener_rutinas_usuario(usuario_id, token_payload):
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['PUT'])
-@required_token
+# @required_token
 def modificar_rutina_completa(id, token_payload):
     try:
         rutina = Rutina.query.get_or_404(id)
@@ -431,7 +431,7 @@ def modificar_rutina_completa(id, token_payload):
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['DELETE'])
-@required_token
+# @required_token
 def eliminar_rutina_completa(id, token_payload):
     try:
         rutina = Rutina.query.get_or_404(id)

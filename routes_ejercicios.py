@@ -300,7 +300,7 @@ def obtener_ejercicios_base():
         }), 500
 
 @ejercicios_bp.route('/ejercicios-base', methods=['POST'])
-@required_token
+# @required_token
 def crear_ejercicio_base(token_payload):
     try:
         # Verificar que el usuario existe

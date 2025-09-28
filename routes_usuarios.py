@@ -147,7 +147,7 @@ def obtener_usuario(id):
         }), 500
 
 @usuarios_bp.route('/usuarios/<int:id>', methods=['PUT'])
-@required_token
+# @required_token
 def actualizar_usuario(id, payload):
     try:
         # Verificar que el id del token coincida con el id del endpoint
@@ -241,7 +241,7 @@ def actualizar_usuario(id, payload):
         }), 500
 
 @usuarios_bp.route('/usuarios/<int:id>', methods=['DELETE'])
-@required_token
+# @required_token
 def eliminar_usuario(id, payload):
     try:
         # Verificar que el id del token coincida con el id del endpoint
@@ -373,7 +373,7 @@ def google_login():
         }), 500
 
 @usuarios_bp.route('/usuarios/logout', methods=['POST'])
-@required_token
+# @required_token
 def logout():
     try:
         # Obtener el token del header de autorización

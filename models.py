@@ -69,6 +69,8 @@ class EntrenamientoRealizado(db.Model):
 
     series_realizadas = db.relationship('SerieRealizada', backref='entrenamiento_realizado', cascade="all, delete-orphan")
 
+    ejercicio = db.relationship('Ejercicio', backref='entrenamientos_realizados')
+
 class Serie(db.Model):
     __tablename__ = 'series'
     id_series = db.Column(db.Integer, primary_key=True)

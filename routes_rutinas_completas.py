@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Rutina, Ejercicio, Serie, EjercicioBase
+from models import db, Rutina, Ejercicio, Serie, EjercicioBase, Entrenamiento, EntrenamientoRealizado
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
 from security import required_token
@@ -11,14 +11,14 @@ rutinas_completas_bp = Blueprint('rutinas_completas_bp', __name__)
 def crear_rutina_completa():
     try:
         data = request.json
-        
+
         # Validar datos requeridos
         if not data:
             return jsonify({
                 'error': 'Datos no proporcionados',
                 'detalle': 'Se requiere un cuerpo JSON con los datos de la rutina'
             }), 400
-            
+
         campos_requeridos = ['nombre', 'usuarios_id', 'nivel_rutinas_id', 'ejercicios']
         for campo in campos_requeridos:
             if campo not in data:
@@ -26,7 +26,7 @@ def crear_rutina_completa():
                     'error': 'Datos incompletos',
                     'detalle': f'El campo {campo} es requerido'
                 }), 400
-        
+
         # Validar que exista el ejercicio base
         for ejercicio_data in data['ejercicios']:
             if 'ejercicios_base_id' not in ejercicio_data:
@@ -34,14 +34,14 @@ def crear_rutina_completa():
                     'error': 'Datos incompletos',
                     'detalle': 'Cada ejercicio debe tener un ejercicios_base_id'
                 }), 400
-                
+
             ejercicio_base = EjercicioBase.query.get(ejercicio_data['ejercicios_base_id'])
             if not ejercicio_base:
                 return jsonify({
                     'error': 'Ejercicio no encontrado',
                     'detalle': f'No existe un ejercicio base con ID {ejercicio_data["ejercicios_base_id"]}'
                 }), 404
-        
+
         # Crear la rutina
         rutina = Rutina(
             nombre=data['nombre'],
@@ -51,7 +51,7 @@ def crear_rutina_completa():
         )
         db.session.add(rutina)
         db.session.flush()
-        
+
         # Crear los ejercicios y sus series
         ejercicios_creados = []
         for ejercicio_data in data['ejercicios']:
@@ -61,14 +61,14 @@ def crear_rutina_completa():
             )
             db.session.add(ejercicio)
             db.session.flush()
-            
+
             # Validar series
             if 'series' not in ejercicio_data:
                 return jsonify({
                     'error': 'Datos incompletos',
                     'detalle': 'Cada ejercicio debe tener al menos una serie'
                 }), 400
-                
+
             series_creadas = []
             for serie_data in ejercicio_data['series']:
                 if 'repeticiones' not in serie_data or 'peso_kg' not in serie_data:
@@ -76,21 +76,21 @@ def crear_rutina_completa():
                         'error': 'Datos incompletos',
                         'detalle': 'Cada serie debe tener repeticiones y peso_kg'
                     }), 400
-                    
+
                 serie = Serie(
                     repeticiones=serie_data['repeticiones'],
                     peso_kg=serie_data['peso_kg'],
                     ejercicios_id=ejercicio.id_ejercicios
                 )
                 db.session.add(serie)
-                db.session.flush()  
+                db.session.flush()
 
                 series_creadas.append({
                     'id': serie.id_series,
                     'repeticiones': serie.repeticiones,
                     'peso_kg': serie.peso_kg
                 })
-            
+
             ejercicio_base = EjercicioBase.query.get(ejercicio_data['ejercicios_base_id'])
             ejercicios_creados.append({
                 'id': ejercicio.id_ejercicios,
@@ -98,9 +98,9 @@ def crear_rutina_completa():
                 'descripcion': ejercicio_base.descripcion,
                 'series': series_creadas
             })
-        
+
         db.session.commit()
-        
+
         return jsonify({
             'mensaje': 'Rutina completa creada exitosamente',
             'rutina': {
@@ -110,7 +110,7 @@ def crear_rutina_completa():
                 'ejercicios': ejercicios_creados
             }
         }), 201
-        
+
     except SQLAlchemyError as e:
         db.session.rollback()
         return jsonify({
@@ -129,13 +129,13 @@ def crear_rutina_completa():
 def obtener_rutina_completa(id):
     try:
         rutina = Rutina.query.get_or_404(id)
-        
+
         ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
-        
+
         ejercicios_completos = []
         for ejercicio in ejercicios:
             series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
-            
+
             ejercicios_completos.append({
                 'id': ejercicio.id_ejercicios,
                 'ejercicios_base_id': ejercicio.ejercicios_base_id,
@@ -147,7 +147,7 @@ def obtener_rutina_completa(id):
                     'peso_kg': serie.peso_kg
                 } for serie in series]
             })
-        
+
         return jsonify({
             'id': rutina.id_rutinas,
             'nombre': rutina.nombre,
@@ -156,7 +156,7 @@ def obtener_rutina_completa(id):
             'nivel_rutinas_id': rutina.nivel_rutinas_id,
             'ejercicios': ejercicios_completos
         })
-        
+
     except NotFound:
         return jsonify({
             'error': 'Rutina no encontrada',
@@ -178,15 +178,15 @@ def obtener_rutina_completa(id):
 def obtener_todas_rutinas_completas():
     try:
         rutinas = Rutina.query.all()
-        
+
         rutinas_completas = []
         for rutina in rutinas:
             ejercicios = Ejercicio.query.filter_by(rutinas_id=rutina.id_rutinas).all()
-            
+
             ejercicios_completos = []
             for ejercicio in ejercicios:
                 series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
-                
+
                 ejercicios_completos.append({
                     'id': ejercicio.id_ejercicios,
                     'ejercicios_base_id': ejercicio.ejercicios_base_id,
@@ -198,7 +198,7 @@ def obtener_todas_rutinas_completas():
                         'peso_kg': serie.peso_kg
                     } for serie in series]
                 })
-            
+
             rutinas_completas.append({
                 'id': rutina.id_rutinas,
                 'nombre': rutina.nombre,
@@ -207,9 +207,9 @@ def obtener_todas_rutinas_completas():
                 'nivel_rutinas_id': rutina.nivel_rutinas_id,
                 'ejercicios': ejercicios_completos
             })
-        
+
         return jsonify(rutinas_completas)
-        
+
     except SQLAlchemyError as e:
         return jsonify({
             'error': 'Error en la base de datos',
@@ -230,23 +230,23 @@ def obtener_rutinas_usuario(usuario_id):
         #     return {'error': 'No autorizado', 'detalle': 'No puedes ver rutinas de otro usuario.'}, 403
         # # Obtener todas las rutinas del usuario
         rutinas = Rutina.query.filter_by(usuarios_id=usuario_id).all()
-        
+
         if not rutinas:
             return jsonify({
                 'mensaje': 'No se encontraron rutinas para este usuario',
                 'rutinas': []
             }), 200
-        
+
         rutinas_completas = []
         for rutina in rutinas:
             # Obtener todos los ejercicios de la rutina
             ejercicios = Ejercicio.query.filter_by(rutinas_id=rutina.id_rutinas).all()
-            
+
             ejercicios_completos = []
             for ejercicio in ejercicios:
                 # Obtener todas las series del ejercicio
                 series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
-                
+
                 ejercicios_completos.append({
                     'id': ejercicio.id_ejercicios,
                     'ejercicios_base_id': ejercicio.ejercicios_base_id,
@@ -258,7 +258,7 @@ def obtener_rutinas_usuario(usuario_id):
                         'peso_kg': serie.peso_kg
                     } for serie in series]
                 })
-            
+
             rutinas_completas.append({
                 'id': rutina.id_rutinas,
                 'nombre': rutina.nombre,
@@ -267,12 +267,12 @@ def obtener_rutinas_usuario(usuario_id):
                 'nivel_rutinas_id': rutina.nivel_rutinas_id,
                 'ejercicios': ejercicios_completos
             })
-        
+
         return jsonify({
             'mensaje': f'Se encontraron {len(rutinas_completas)} rutinas para el usuario',
             'rutinas': rutinas_completas
         })
-        
+
     except SQLAlchemyError as e:
         return jsonify({
             'error': 'Error en la base de datos',
@@ -283,6 +283,58 @@ def obtener_rutinas_usuario(usuario_id):
             'error': 'Error inesperado',
             'detalle': str(e)
         }), 500
+
+
+@rutinas_completas_bp.route('/rutinas/<int:id_rutina>/entrenamientos-realizados', methods=['GET'])
+# @required_token
+def obtener_entrenamientos_realizados_por_rutina(id_rutina):
+    """
+    Obtiene todos los entrenamientos realizados asociados a una rutina específica.
+    """
+    try:
+        # 1. Verificar que la rutina exista
+        rutina = Rutina.query.get_or_404(id_rutina)
+
+        # 2. Obtener todos los entrenamientos para esa rutina, cargando eficientemente los datos relacionados
+        entrenamientos = Entrenamiento.query.filter_by(rutinas_id=id_rutina).options(
+            db.joinedload(Entrenamiento.realizados).joinedload(EntrenamientoRealizado.series_realizadas),
+            db.joinedload(Entrenamiento.realizados).joinedload(EntrenamientoRealizado.ejercicio).joinedload(Ejercicio.ejercicio_base)
+        ).order_by(Entrenamiento.fecha.desc()).all()
+
+        if not entrenamientos:
+            return jsonify({
+                'mensaje': 'No se encontraron entrenamientos realizados para esta rutina',
+                'entrenamientos': []
+            }), 200
+
+        # 3. Construir la respuesta JSON
+        resultado = []
+        for entrenamiento in entrenamientos:
+            entrenamiento_info = {
+                'id_entrenamiento': entrenamiento.id_entrenamientos,
+                'fecha': entrenamiento.fecha.isoformat(),
+                'ejercicios_realizados': []
+            }
+            for realizado in entrenamiento.realizados:
+                entrenamiento_info['ejercicios_realizados'].append({
+                    'id_entrenamiento_realizado': realizado.id_entrenamientos_realizados,
+                    'ejercicio': {
+                        'id_ejercicio': realizado.ejercicio.id_ejercicios,
+                        'nombre': realizado.ejercicio.ejercicio_base.nombre
+                    },
+                    'series_realizadas': [
+                        {'id_series_realizadas': s.id_series_realizadas, 'repeticiones': s.repeticiones, 'peso_kg': s.peso_kg} for s in realizado.series_realizadas
+                    ]
+                })
+            resultado.append(entrenamiento_info)
+
+        return jsonify(resultado)
+
+    except NotFound:
+        return jsonify({'error': 'Rutina no encontrada', 'detalle': f'No existe una rutina con ID {id_rutina}'}), 404
+    except Exception as e:
+        return jsonify({'error': 'Ocurrió un error inesperado', 'detalle': str(e)}), 500
+
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['PUT'])
 # @required_token
@@ -328,7 +380,7 @@ def modificar_rutina_completa(id):
                     if 'series' in ejercicio_data:
                         # Eliminar series existentes
                         Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).delete()
-                        
+
                         # Crear nuevas series
                         for serie_data in ejercicio_data['series']:
                             if 'repeticiones' not in serie_data or 'peso_kg' not in serie_data:
@@ -438,24 +490,24 @@ def eliminar_rutina_completa(id):
         # Verificar que el usuario autenticado es el dueño de la rutina
         if (not rutina.usuarios_id):
             return {'error': 'No autorizado', 'detalle': 'No puedes eliminar rutinas de otro usuario.'}, 403
-        
+
         # Obtener todos los ejercicios de la rutina
         ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
-        
+
         # Eliminar todas las series asociadas a los ejercicios
         for ejercicio in ejercicios:
             Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).delete()
             db.session.delete(ejercicio)
-        
+
         # Eliminar la rutina
         db.session.delete(rutina)
         db.session.commit()
-        
+
         return jsonify({
             'mensaje': 'Rutina eliminada exitosamente',
             'detalle': f'Se eliminó la rutina con ID {id} y todos sus ejercicios y series asociados'
         }), 200
-        
+
     except NotFound:
         return jsonify({
             'error': 'Rutina no encontrada',
@@ -472,4 +524,4 @@ def eliminar_rutina_completa(id):
         return jsonify({
             'error': 'Error inesperado',
             'detalle': str(e)
-        }), 500 
+        }), 500

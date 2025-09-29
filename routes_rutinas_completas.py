@@ -252,6 +252,7 @@ def obtener_rutinas_usuario(usuario_id):
                     'ejercicios_base_id': ejercicio.ejercicios_base_id,
                     'nombre': ejercicio.ejercicio_base.nombre,
                     'descripcion': ejercicio.ejercicio_base.descripcion,
+                    'video_url': ejercicio.ejercicio_base.video_url,
                     'series': [{
                         'id': serie.id_series,
                         'repeticiones': serie.repeticiones,

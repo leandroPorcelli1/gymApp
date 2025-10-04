@@ -6,9 +6,31 @@ from security import required_token
 
 rutinas_completas_bp = Blueprint('rutinas_completas_bp', __name__)
 
+# --- Helper Function para construir la respuesta JSON de una rutina ---
+def _build_rutina_json(rutina):
+    """Construye un diccionario serializable en JSON a partir de un objeto Rutina."""
+    ejercicios_completos = []
+    for ejercicio in rutina.ejercicios:
+        ejercicios_completos.append({
+            'id': ejercicio.id_ejercicios,
+            'ejercicios_base_id': ejercicio.ejercicios_base_id,
+            'nombre': ejercicio.ejercicio_base.nombre,
+            'descripcion': ejercicio.ejercicio_base.descripcion,
+            'video_url': ejercicio.ejercicio_base.video_url,
+            'series': [{'id': s.id_series, 'repeticiones': s.repeticiones, 'peso_kg': s.peso_kg} for s in ejercicio.series]
+        })
+    return {
+        'id': rutina.id_rutinas,
+        'nombre': rutina.nombre,
+        'descripcion': rutina.descripcion,
+        'usuarios_id': rutina.usuarios_id,
+        'nivel_rutinas_id': rutina.nivel_rutinas_id,
+        'ejercicios': ejercicios_completos
+    }
+
 @rutinas_completas_bp.route('/rutinas/completas', methods=['POST'])
-# @required_token
-def crear_rutina_completa():
+@required_token
+def crear_rutina_completa(token_payload):
     try:
         data = request.json
 
@@ -19,7 +41,8 @@ def crear_rutina_completa():
                 'detalle': 'Se requiere un cuerpo JSON con los datos de la rutina'
             }), 400
 
-        campos_requeridos = ['nombre', 'usuarios_id', 'nivel_rutinas_id', 'ejercicios']
+        # Se elimina 'usuarios_id' de los campos requeridos, se toma del token.
+        campos_requeridos = ['nombre', 'nivel_rutinas_id', 'ejercicios']
         for campo in campos_requeridos:
             if campo not in data:
                 return jsonify({
@@ -46,7 +69,7 @@ def crear_rutina_completa():
         rutina = Rutina(
             nombre=data['nombre'],
             descripcion=data.get('descripcion'),
-            usuarios_id=data['usuarios_id'],
+            usuarios_id=token_payload.get('id_usuario'), # ID del usuario desde el token
             nivel_rutinas_id=data['nivel_rutinas_id']
         )
         db.session.add(rutina)
@@ -125,37 +148,20 @@ def crear_rutina_completa():
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['GET'])
-# @required_token
-def obtener_rutina_completa(id):
+@required_token
+def obtener_rutina_completa(id, token_payload):
     try:
-        rutina = Rutina.query.get_or_404(id)
+        # --- Mejora de Rendimiento: Carga Eficiente de Datos Relacionados ---
+        rutina = Rutina.query.options(
+            db.joinedload(Rutina.ejercicios).joinedload(Ejercicio.ejercicio_base),
+            db.joinedload(Rutina.ejercicios).joinedload(Ejercicio.series)
+        ).get_or_404(id)
 
-        ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
+        # --- Validación de Propiedad ---
+        if rutina.usuarios_id != token_payload.get('id_usuario'):
+            return jsonify({'error': 'No autorizado para ver esta rutina.'}), 403
 
-        ejercicios_completos = []
-        for ejercicio in ejercicios:
-            series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
-
-            ejercicios_completos.append({
-                'id': ejercicio.id_ejercicios,
-                'ejercicios_base_id': ejercicio.ejercicios_base_id,
-                'nombre': ejercicio.ejercicio_base.nombre,
-                'descripcion': ejercicio.ejercicio_base.descripcion,
-                'series': [{
-                    'id': serie.id_series,
-                    'repeticiones': serie.repeticiones,
-                    'peso_kg': serie.peso_kg
-                } for serie in series]
-            })
-
-        return jsonify({
-            'id': rutina.id_rutinas,
-            'nombre': rutina.nombre,
-            'descripcion': rutina.descripcion,
-            'usuarios_id': rutina.usuarios_id,
-            'nivel_rutinas_id': rutina.nivel_rutinas_id,
-            'ejercicios': ejercicios_completos
-        })
+        return jsonify(_build_rutina_json(rutina))
 
     except NotFound:
         return jsonify({
@@ -174,41 +180,18 @@ def obtener_rutina_completa(id):
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas', methods=['GET'])
-# @required_token
-def obtener_todas_rutinas_completas():
+@required_token
+def obtener_todas_rutinas_completas(token_payload):
+    """ Obtiene todas las rutinas completas del usuario autenticado. """
     try:
-        rutinas = Rutina.query.all()
+        user_id = token_payload.get('id_usuario')
+        # --- Consulta Segura y Optimizada ---
+        rutinas = Rutina.query.filter_by(usuarios_id=user_id).options(
+            db.joinedload(Rutina.ejercicios).joinedload(Ejercicio.ejercicio_base),
+            db.joinedload(Rutina.ejercicios).joinedload(Ejercicio.series)
+        ).order_by(Rutina.nombre).all()
 
-        rutinas_completas = []
-        for rutina in rutinas:
-            ejercicios = Ejercicio.query.filter_by(rutinas_id=rutina.id_rutinas).all()
-
-            ejercicios_completos = []
-            for ejercicio in ejercicios:
-                series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
-
-                ejercicios_completos.append({
-                    'id': ejercicio.id_ejercicios,
-                    'ejercicios_base_id': ejercicio.ejercicios_base_id,
-                    'nombre': ejercicio.ejercicio_base.nombre,
-                    'descripcion': ejercicio.ejercicio_base.descripcion,
-                    'series': [{
-                        'id': serie.id_series,
-                        'repeticiones': serie.repeticiones,
-                        'peso_kg': serie.peso_kg
-                    } for serie in series]
-                })
-
-            rutinas_completas.append({
-                'id': rutina.id_rutinas,
-                'nombre': rutina.nombre,
-                'descripcion': rutina.descripcion,
-                'usuarios_id': rutina.usuarios_id,
-                'nivel_rutinas_id': rutina.nivel_rutinas_id,
-                'ejercicios': ejercicios_completos
-            })
-
-        return jsonify(rutinas_completas)
+        return jsonify([_build_rutina_json(rutina) for rutina in rutinas])
 
     except SQLAlchemyError as e:
         return jsonify({
@@ -222,14 +205,18 @@ def obtener_todas_rutinas_completas():
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/usuario/<int:usuario_id>', methods=['GET'])
-# @required_token
-def obtener_rutinas_usuario(usuario_id):
+@required_token
+def obtener_rutinas_usuario(usuario_id, token_payload):
     try:
-        # # Verificar que el id del token coincida con el usuario_id del endpoint
-        # if token_payload.get('id_usuario') != usuario_id:
-        #     return {'error': 'No autorizado', 'detalle': 'No puedes ver rutinas de otro usuario.'}, 403
-        # # Obtener todas las rutinas del usuario
-        rutinas = Rutina.query.filter_by(usuarios_id=usuario_id).all()
+        # --- Validación de Propiedad ---
+        if token_payload.get('id_usuario') != usuario_id:
+            return jsonify({'error': 'No autorizado', 'detalle': 'No puedes ver rutinas de otro usuario.'}), 403
+
+        # --- Consulta Optimizada ---
+        rutinas = Rutina.query.filter_by(usuarios_id=usuario_id).options(
+            db.joinedload(Rutina.ejercicios).joinedload(Ejercicio.ejercicio_base),
+            db.joinedload(Rutina.ejercicios).joinedload(Ejercicio.series)
+        ).order_by(Rutina.nombre).all()
 
         if not rutinas:
             return jsonify({
@@ -237,41 +224,9 @@ def obtener_rutinas_usuario(usuario_id):
                 'rutinas': []
             }), 200
 
-        rutinas_completas = []
-        for rutina in rutinas:
-            # Obtener todos los ejercicios de la rutina
-            ejercicios = Ejercicio.query.filter_by(rutinas_id=rutina.id_rutinas).all()
-
-            ejercicios_completos = []
-            for ejercicio in ejercicios:
-                # Obtener todas las series del ejercicio
-                series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
-
-                ejercicios_completos.append({
-                    'id': ejercicio.id_ejercicios,
-                    'ejercicios_base_id': ejercicio.ejercicios_base_id,
-                    'nombre': ejercicio.ejercicio_base.nombre,
-                    'descripcion': ejercicio.ejercicio_base.descripcion,
-                    'video_url': ejercicio.ejercicio_base.video_url,
-                    'series': [{
-                        'id': serie.id_series,
-                        'repeticiones': serie.repeticiones,
-                        'peso_kg': serie.peso_kg
-                    } for serie in series]
-                })
-
-            rutinas_completas.append({
-                'id': rutina.id_rutinas,
-                'nombre': rutina.nombre,
-                'descripcion': rutina.descripcion,
-                'usuarios_id': rutina.usuarios_id,
-                'nivel_rutinas_id': rutina.nivel_rutinas_id,
-                'ejercicios': ejercicios_completos
-            })
-
         return jsonify({
-            'mensaje': f'Se encontraron {len(rutinas_completas)} rutinas para el usuario',
-            'rutinas': rutinas_completas
+            'mensaje': f'Se encontraron {len(rutinas)} rutinas para el usuario',
+            'rutinas': [_build_rutina_json(rutina) for rutina in rutinas]
         })
 
     except SQLAlchemyError as e:
@@ -287,14 +242,18 @@ def obtener_rutinas_usuario(usuario_id):
 
 
 @rutinas_completas_bp.route('/rutinas/<int:id_rutina>/entrenamientos-realizados', methods=['GET'])
-# @required_token
-def obtener_entrenamientos_realizados_por_rutina(id_rutina):
+@required_token
+def obtener_entrenamientos_realizados_por_rutina(id_rutina, token_payload):
     """
     Obtiene todos los entrenamientos realizados asociados a una rutina específica.
     """
     try:
         # 1. Verificar que la rutina exista
         rutina = Rutina.query.get_or_404(id_rutina)
+
+        # --- Validación de Propiedad ---
+        if rutina.usuarios_id != token_payload.get('id_usuario'):
+            return jsonify({'error': 'No autorizado para ver los entrenamientos de esta rutina.'}), 403
 
         # 2. Obtener todos los entrenamientos para esa rutina, cargando eficientemente los datos relacionados
         entrenamientos = Entrenamiento.query.filter_by(rutinas_id=id_rutina).options(
@@ -338,13 +297,14 @@ def obtener_entrenamientos_realizados_por_rutina(id_rutina):
 
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['PUT'])
-# @required_token
-def modificar_rutina_completa(id):
+@required_token
+def modificar_rutina_completa(id, token_payload):
     try:
         rutina = Rutina.query.get_or_404(id)
-        # # Verificar que el usuario autenticado es el dueño de la rutina
-        # if rutina.usuarios_id != token_payload.get('id_usuario'):
-        #     return {'error': 'No autorizado', 'detalle': 'No puedes modificar rutinas de otro usuario.'}, 403
+        # --- Validación de Propiedad ---
+        if rutina.usuarios_id != token_payload.get('id_usuario'):
+            return jsonify({'error': 'No autorizado', 'detalle': 'No puedes modificar rutinas de otro usuario.'}), 403
+
         data = request.json
 
         if not data:
@@ -436,33 +396,15 @@ def modificar_rutina_completa(id):
 
         db.session.commit()
 
-        # Obtener la rutina actualizada para la respuesta
-        ejercicios = Ejercicio.query.filter_by(rutinas_id=id).all()
-        ejercicios_completos = []
-        for ejercicio in ejercicios:
-            series = Serie.query.filter_by(ejercicios_id=ejercicio.id_ejercicios).all()
-            ejercicios_completos.append({
-                'id_ejercicios': ejercicio.id_ejercicios,
-                'ejercicios_base_id': ejercicio.ejercicios_base_id,
-                'nombre': ejercicio.ejercicio_base.nombre,
-                'descripcion': ejercicio.ejercicio_base.descripcion,
-                'series': [{
-                    'id_series': serie.id_series,
-                    'repeticiones': serie.repeticiones,
-                    'peso_kg': serie.peso_kg
-                } for serie in series]
-            })
+        # --- Obtener la rutina actualizada para la respuesta de forma eficiente ---
+        rutina_actualizada = Rutina.query.options(
+            db.joinedload(Rutina.ejercicios).joinedload(Ejercicio.ejercicio_base),
+            db.joinedload(Rutina.ejercicios).joinedload(Ejercicio.series)
+        ).get(id)
 
         return jsonify({
             'mensaje': 'Rutina modificada exitosamente',
-            'rutina': {
-                'id_rutinas': rutina.id_rutinas,
-                'nombre': rutina.nombre,
-                'descripcion': rutina.descripcion,
-                'usuarios_id': rutina.usuarios_id,
-                'nivel_rutinas_id': rutina.nivel_rutinas_id,
-                'ejercicios': ejercicios_completos
-            }
+            'rutina': _build_rutina_json(rutina_actualizada)
         })
 
     except NotFound:
@@ -484,15 +426,13 @@ def modificar_rutina_completa(id):
         }), 500
 
 @rutinas_completas_bp.route('/rutinas/completas/<int:id>', methods=['DELETE'])
-# @required_token
-def eliminar_rutina_completa(id):
+@required_token
+def eliminar_rutina_completa(id, token_payload):
     try:
         rutina = Rutina.query.get_or_404(id)
-        # # --- Lógica de Seguridad (para cuando se reactive @required_token) ---
-        # # Verificar que el usuario autenticado es el dueño de la rutina
-        # if rutina.usuarios_id != token_payload.get('id_usuario'):
-        #     return jsonify({'error': 'No autorizado', 'detalle': 'No puedes eliminar rutinas de otro usuario.'}), 403
-
+        # --- Validación de Propiedad ---
+        if rutina.usuarios_id != token_payload.get('id_usuario'):
+            return jsonify({'error': 'No autorizado', 'detalle': 'No puedes eliminar rutinas de otro usuario.'}), 403
 
         db.session.delete(rutina)
         db.session.commit()

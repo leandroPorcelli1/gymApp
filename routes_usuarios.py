@@ -118,8 +118,13 @@ def obtener_usuarios():
         }), 500
 
 @usuarios_bp.route('/usuarios/<int:id>', methods=['GET'])
-def obtener_usuario(id):
+@required_token
+def obtener_usuario(id, token_payload):
     try:
+        # --- Validación de Propiedad ---
+        if token_payload.get('id_usuario') != id:
+            return jsonify({'error': 'No autorizado', 'detalle': 'No puedes ver datos de otro usuario.'}), 403
+
         usuario = Usuario.query.get_or_404(id)
         return jsonify({
             'id_usuarios': usuario.id_usuarios,
@@ -147,11 +152,11 @@ def obtener_usuario(id):
         }), 500
 
 @usuarios_bp.route('/usuarios/<int:id>', methods=['PUT'])
-# @required_token
-def actualizar_usuario(id, payload):
+@required_token
+def actualizar_usuario(id, token_payload):
     try:
         # Verificar que el id del token coincida con el id del endpoint
-        if payload.get('id_usuario') != id:
+        if token_payload.get('id_usuario') != id:
             return jsonify({
                 'error': 'No autorizado',
                 'detalle': 'No puedes modificar datos de otro usuario.'
@@ -241,11 +246,11 @@ def actualizar_usuario(id, payload):
         }), 500
 
 @usuarios_bp.route('/usuarios/<int:id>', methods=['DELETE'])
-# @required_token
-def eliminar_usuario(id, payload):
+@required_token
+def eliminar_usuario(id, token_payload):
     try:
         # Verificar que el id del token coincida con el id del endpoint
-        if payload.get('id_usuario') != id:
+        if token_payload.get('id_usuario') != id:
             return jsonify({
                 'error': 'No autorizado',
                 'detalle': 'No puedes eliminar otro usuario.'
@@ -373,8 +378,8 @@ def google_login():
         }), 500
 
 @usuarios_bp.route('/usuarios/logout', methods=['POST'])
-# @required_token
-def logout():
+@required_token
+def logout(token_payload): # Se añade token_payload aunque no se use directamente, es requerido por el decorador
     try:
         # Obtener el token del header de autorización
         auth_header = request.headers.get('Authorization')

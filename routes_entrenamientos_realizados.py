@@ -37,10 +37,14 @@ def crear_entrenamiento_realizados(token_payload):
     if not isinstance(data['rutinas_id'], int):
         return jsonify({'error': 'El campo "rutinas_id" debe ser un entero.'}), 400
 
-    # Validar que el usuario y la rutina existan
-    # La existencia del usuario ya está garantizada por el token.
-    if not Rutina.query.get(data['rutinas_id']):
-        return jsonify({'error': f"La rutina con id {data['rutinas_id']} no existe."}), 404
+    # Validar que la rutina exista y que pertenezca al usuario autenticado
+    rutina = Rutina.query.get(data['rutinas_id'])
+    if not rutina:
+        return jsonify({'error': 'Rutina no encontrada', 'detalle': f"La rutina con id {data['rutinas_id']} no existe."}), 404
+
+    # --- Validación de Propiedad ---
+    if rutina.usuarios_id != user_id_from_token:
+        return jsonify({'error': 'Acción no permitida', 'detalle': 'No puedes registrar un entrenamiento para una rutina que no te pertenece.'}), 403
 
     if not isinstance(data['ejercicios'], list) or not data['ejercicios']:
         return jsonify({'error': 'El campo "ejercicios" debe ser una lista no vacía.'}), 400
@@ -164,7 +168,12 @@ def obtener_entrenamientos_realizados(token_payload):
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['GET'])
 @required_token
 def obtener_entrenamiento_realizado(id, token_payload):
-    realizado = EntrenamientoRealizado.query.get_or_404(id)
+    realizado = EntrenamientoRealizado.query.get(id)
+
+    # --- Validación de Existencia ---
+    # Se añade una validación explícita para devolver un mensaje de error personalizado.
+    if not realizado:
+        return jsonify({'error': 'Entrenamiento realizado no encontrado', 'detalle': f'No se encontró un entrenamiento realizado con el ID {id}.'}), 404
 
     # --- Validación de Propiedad ---
     # Se verifica que el entrenamiento realizado pertenezca al usuario autenticado.
@@ -273,7 +282,12 @@ def actualizar_entrenamiento_completo(id, token_payload):
 @required_token
 def eliminar_entrenamiento_realizado(id, token_payload):
     # La ruta es confusa, pero asume que el ID es de un 'Entrenamiento'
-    entrenamiento = Entrenamiento.query.get_or_404(id)
+    entrenamiento = Entrenamiento.query.get(id)
+
+    # --- Validación de Existencia ---
+    # Se añade una validación explícita para devolver un mensaje de error personalizado.
+    if not entrenamiento:
+        return jsonify({'error': 'Entrenamiento no encontrado', 'detalle': f'No se encontró un entrenamiento con el ID {id}.'}), 404
 
     # --- Validación de Propiedad ---
     if entrenamiento.usuarios_id != token_payload.get('id_usuario'):

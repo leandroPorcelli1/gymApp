@@ -10,16 +10,20 @@ entrenamientos_realizados_bp = Blueprint('entrenamientos_realizados_bp', __name_
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados', methods=['POST'])
-# @required_token
-def crear_entrenamiento_realizados():
+@required_token
+def crear_entrenamiento_realizados(token_payload):
     data = request.json
     if not data:
         return jsonify({'error': 'No se proporcionaron datos en el cuerpo de la solicitud'}), 400
 
+    # Se obtiene el ID del usuario directamente del token para mayor seguridad
+    user_id_from_token = token_payload.get('id_usuario')
+
     # --- Inicio de Validaciones ---
 
     # 1. Validación de campos requeridos
-    required_fields = ['fecha', 'usuarios_id', 'rutinas_id', 'ejercicios']
+    # Se elimina 'usuarios_id' de los campos requeridos en el JSON, ya que se toma del token.
+    required_fields = ['fecha', 'rutinas_id', 'ejercicios']
     missing_fields = [field for field in required_fields if field not in data]
     if missing_fields:
         return jsonify({'error': f'Faltan campos requeridos: {", ".join(missing_fields)}'}), 400
@@ -30,14 +34,11 @@ def crear_entrenamiento_realizados():
     except (ValueError, TypeError):
         return jsonify({'error': 'El formato de fecha es inválido. Use YYYY-MM-DD.'}), 400
 
-    if not isinstance(data['usuarios_id'], int):
-        return jsonify({'error': 'El campo "usuarios_id" debe ser un entero.'}), 400
     if not isinstance(data['rutinas_id'], int):
         return jsonify({'error': 'El campo "rutinas_id" debe ser un entero.'}), 400
 
     # Validar que el usuario y la rutina existan
-    if not Usuario.query.get(data['usuarios_id']):
-        return jsonify({'error': f"El usuario con id {data['usuarios_id']} no existe."}), 404
+    # La existencia del usuario ya está garantizada por el token.
     if not Rutina.query.get(data['rutinas_id']):
         return jsonify({'error': f"La rutina con id {data['rutinas_id']} no existe."}), 404
 
@@ -88,7 +89,7 @@ def crear_entrenamiento_realizados():
     try:
         entrenamiento = Entrenamiento(
             fecha=data['fecha'],
-            usuarios_id=data['usuarios_id'],
+            usuarios_id=user_id_from_token, # Se usa el ID del token
             rutinas_id=data['rutinas_id']
         )
         db.session.add(entrenamiento)
@@ -127,34 +128,33 @@ def crear_entrenamiento_realizados():
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados', methods=['GET'])
-# @required_token
-def obtener_entrenamientos_realizados():
+@required_token
+def obtener_entrenamientos_realizados(token_payload):
     try:
-        realizados = EntrenamientoRealizado.query.all()
+        user_id_from_token = token_payload.get('id_usuario')
+
+        # --- Consulta Optimizada y Segura ---
+        # Se obtienen solo los entrenamientos del usuario autenticado
+        # y se cargan los datos relacionados de forma eficiente para evitar N+1 queries.
+        entrenamientos = Entrenamiento.query.filter_by(usuarios_id=user_id_from_token).options(
+            db.joinedload(Entrenamiento.realizados).joinedload(EntrenamientoRealizado.series_realizadas),
+            db.joinedload(Entrenamiento.realizados).joinedload(EntrenamientoRealizado.ejercicio).joinedload(Ejercicio.ejercicio_base)
+        ).order_by(Entrenamiento.fecha.desc()).all()
+
         realizados_info = []
-
-        for realizado in realizados:
-            ejercicio = Ejercicio.query.get(realizado.ejercicios_id)
-            if not ejercicio:
-                continue
-
-            series = SerieRealizada.query.filter_by(
-                entrenamientos_realizados_id=realizado.id_entrenamientos_realizados).all()
-
-            series_info = [{'id': s.id_series_realizadas, 'repeticiones': s.repeticiones, 'peso_kg': s.peso_kg} for s in
-                           series]
-
-            realizados_info.append({
-                'id_entrenamientos_realizados': realizado.id_entrenamientos_realizados,
-                'entrenamientos_id': realizado.entrenamientos_id,
-                'ejercicios_id': realizado.ejercicios_id,
-                'ejercicio': {
-                    'id': ejercicio.id_ejercicios,
-                    'nombre': ejercicio.ejercicio_base.nombre,
-                    'descripcion': ejercicio.ejercicio_base.descripcion
-                },
-                'series_realizadas': series_info
-            })
+        for entrenamiento in entrenamientos:
+            for realizado in entrenamiento.realizados:
+                series_info = [{'id': s.id_series_realizadas, 'repeticiones': s.repeticiones, 'peso_kg': s.peso_kg} for s in realizado.series_realizadas]
+                realizados_info.append({
+                    'id_entrenamientos_realizados': realizado.id_entrenamientos_realizados,
+                    'entrenamientos_id': realizado.entrenamientos_id,
+                    'fecha_entrenamiento': entrenamiento.fecha.isoformat(),
+                    'ejercicio': {
+                        'id': realizado.ejercicio.id_ejercicios,
+                        'nombre': realizado.ejercicio.ejercicio_base.nombre
+                    },
+                    'series_realizadas': series_info
+                })
 
         return jsonify(realizados_info), 200
     except SQLAlchemyError as e:
@@ -162,9 +162,15 @@ def obtener_entrenamientos_realizados():
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['GET'])
-# @required_token
-def obtener_entrenamiento_realizado(id):
+@required_token
+def obtener_entrenamiento_realizado(id, token_payload):
     realizado = EntrenamientoRealizado.query.get_or_404(id)
+
+    # --- Validación de Propiedad ---
+    # Se verifica que el entrenamiento realizado pertenezca al usuario autenticado.
+    if realizado.entrenamiento.usuarios_id != token_payload.get('id_usuario'):
+        return jsonify({'error': 'No autorizado para ver este recurso.'}), 403
+
     ejercicio = Ejercicio.query.get(realizado.ejercicios_id)
     if not ejercicio:
         return jsonify({'error': f'El ejercicio con ID {realizado.ejercicios_id} no fue encontrado.'}), 404
@@ -187,12 +193,17 @@ def obtener_entrenamiento_realizado(id):
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['PUT'])
-# @required_token
-def actualizar_entrenamiento_completo(id):
+@required_token
+def actualizar_entrenamiento_completo(id, token_payload):
+    # La ruta es confusa, pero asume que el ID es de un 'Entrenamiento'
     entrenamiento = Entrenamiento.query.get_or_404(id)
     data = request.json
     if not data:
         return jsonify({'error': 'No se proporcionaron datos en el cuerpo de la solicitud'}), 400
+
+    # --- Validación de Propiedad ---
+    if entrenamiento.usuarios_id != token_payload.get('id_usuario'):
+        return jsonify({'error': 'No autorizado para modificar este entrenamiento.'}), 403
 
     if 'fecha' in data:
         try:
@@ -259,9 +270,15 @@ def actualizar_entrenamiento_completo(id):
 
 
 @entrenamientos_realizados_bp.route('/entrenamientos_realizados/<int:id>', methods=['DELETE'])
-# @required_token
-def eliminar_entrenamiento_realizado(id):
-    realizado = Entrenamiento.query.get_or_404(id)
-    db.session.delete(realizado)
+@required_token
+def eliminar_entrenamiento_realizado(id, token_payload):
+    # La ruta es confusa, pero asume que el ID es de un 'Entrenamiento'
+    entrenamiento = Entrenamiento.query.get_or_404(id)
+
+    # --- Validación de Propiedad ---
+    if entrenamiento.usuarios_id != token_payload.get('id_usuario'):
+        return jsonify({'error': 'No autorizado para eliminar este entrenamiento.'}), 403
+
+    db.session.delete(entrenamiento)
     db.session.commit()
-    return jsonify({'mensaje': 'Ejercicio del entrenamiento eliminado con éxito'})
+    return jsonify({'mensaje': 'Entrenamiento eliminado con éxito'})

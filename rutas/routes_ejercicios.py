@@ -1,9 +1,7 @@
 from flask import Blueprint, request, jsonify
-from models import db, Ejercicio, EjercicioBase
+from modelos.models import db, Ejercicio, EjercicioBase
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
-from security import required_token
-from models import Usuario
 
 ejercicios_bp = Blueprint('ejercicios_bp', __name__)
 

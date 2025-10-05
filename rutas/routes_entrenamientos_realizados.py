@@ -3,7 +3,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 
 # Se importan los modelos necesarios para las nuevas validaciones
-from models import db, EntrenamientoRealizado, Entrenamiento, Ejercicio, EjercicioBase, SerieRealizada, Usuario, Rutina
+from modelos.models import db, EntrenamientoRealizado, Entrenamiento, Ejercicio, SerieRealizada, Rutina
 from security import required_token
 
 entrenamientos_realizados_bp = Blueprint('entrenamientos_realizados_bp', __name__)

@@ -1,13 +1,12 @@
 from flask import Blueprint, request, jsonify
-from models import db, Usuario
+from modelos.models import db, Usuario
 from google.oauth2 import id_token
 from google.auth.transport import requests
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from werkzeug.exceptions import NotFound
-import jwt
-from security import create_token, verify_token, required_token, is_token_invalidated
+from security import create_token, required_token, is_token_invalidated
 
 usuarios_bp = Blueprint('usuarios_bp', __name__)
 

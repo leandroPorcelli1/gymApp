@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Rutina, Ejercicio, Serie, EjercicioBase, Entrenamiento, EntrenamientoRealizado, SerieRealizada
+from modelos.models import db, Rutina, Ejercicio, Serie, EjercicioBase, Entrenamiento, EntrenamientoRealizado
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
 from security import required_token

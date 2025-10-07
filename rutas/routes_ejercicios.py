@@ -1,12 +1,15 @@
 from flask import Blueprint, request, jsonify
-from modelos.models import db, Ejercicio, EjercicioBase
+from modelos.models import db, Ejercicio, EjercicioBase, EjercicioUsuario, Usuario
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
 
+from security import required_token
+
 ejercicios_bp = Blueprint('ejercicios_bp', __name__)
 
-@ejercicios_bp.route('/ejercicios', methods=['POST'])
-def crear_ejercicio():
+@ejercicios_bp.route('/usuarios/ejercicios', methods=['POST'])
+@required_token
+def crear_ejercicio(token_payload):
     try:
         data = request.json
         
@@ -15,38 +18,41 @@ def crear_ejercicio():
                 'error': 'Datos no proporcionados',
                 'detalle': 'Se requiere un cuerpo JSON con los datos del ejercicio'
             }), 400
-            
-        campos_requeridos = ['ejercicios_base_id', 'rutinas_id']
-        for campo in campos_requeridos:
-            if campo not in data:
-                return jsonify({
-                    'error': 'Datos incompletos',
-                    'detalle': f'El campo {campo} es requerido'
-                }), 400
-        
-        # Validar que exista el ejercicio base
-        ejercicio_base = EjercicioBase.query.get(data['ejercicios_base_id'])
-        if not ejercicio_base:
+
+        if 'nombre' not in data or not data['nombre'].strip():
+            return jsonify({'error': 'Campo requerido', 'detalle': 'El campo "nombre" no puede estar vacío.'}), 400
+
+        user_id = token_payload.get('id_usuario')
+        usuario = Usuario.query.get(user_id)
+
+        if not usuario:
             return jsonify({
-                'error': 'Ejercicio base no encontrado',
-                'detalle': f'No existe un ejercicio base con ID {data["ejercicios_base_id"]}'
+                'error': 'Usuario no encontrado',
+                'detalle': f'No se ha encontrado un usuario con el ID {user_id} asociado al token.'
             }), 404
-        
-        ejercicio = Ejercicio(
-            ejercicios_base_id=data['ejercicios_base_id'],
-            rutinas_id=data['rutinas_id']
+
+        nombre = data.get('nombre')
+        descripcion = data.get('descripcion')
+        video_url = data.get('video_url')
+
+
+        ejercicio_usuario = EjercicioUsuario(
+            nombre=nombre,
+            descripcion=descripcion,
+            video_url=video_url,
+            usuarios_id=usuario.id_usuarios
         )
-        db.session.add(ejercicio)
+        db.session.add(ejercicio_usuario)
         db.session.commit()
         
         return jsonify({
             'mensaje': 'Ejercicio creado exitosamente',
-            'ejercicio': {
-                'id': ejercicio.id_ejercicios,
-                'ejercicios_base_id': ejercicio.ejercicios_base_id,
-                'rutinas_id': ejercicio.rutinas_id,
-                'nombre': ejercicio_base.nombre,
-                'descripcion': ejercicio_base.descripcion
+            'ejercicio_usuario': {
+                'id_ejercicios_usuario': ejercicio_usuario.id_ejercicios_usuario,
+                'nombre': ejercicio_usuario.nombre,
+                'descripcion': ejercicio_usuario.descripcion,
+                'video_url': ejercicio_usuario.video_url,
+                'usuario_id': ejercicio_usuario.usuarios_id,
             }
         }), 201
         
@@ -64,44 +70,73 @@ def crear_ejercicio():
         }), 500
 
 
-@ejercicios_bp.route('/ejercicios/<int:id>', methods=['GET'])
-def obtener_ejercicio(id):
+# @ejercicios_bp.route('/ejercicios/<int:id>', methods=['GET'])
+# def obtener_ejercicio(id):
+#     try:
+#         ejercicio = Ejercicio.query.get_or_404(id)
+#         return jsonify({
+#             'id_ejercicios': ejercicio.id_ejercicios,
+#             'ejercicios_base_id': ejercicio.ejercicios_base_id,
+#             'rutinas_id': ejercicio.rutinas_id,
+#             'nombre': ejercicio.ejercicio_base.nombre,
+#             'descripcion': ejercicio.ejercicio_base.descripcion
+#         })
+#
+#     except NotFound:
+#         return jsonify({
+#             'error': 'Ejercicio no encontrado',
+#             'detalle': f'No existe un ejercicio con ID {id}'
+#         }), 404
+#     except SQLAlchemyError as e:
+#         return jsonify({
+#             'error': 'Error en la base de datos',
+#             'detalle': str(e)
+#         }), 500
+#     except Exception as e:
+#         return jsonify({
+#             'error': 'Error inesperado',
+#             'detalle': str(e)
+#         }), 500
+
+@ejercicios_bp.route('/catalogo-ejercicios', methods=['GET'])
+@required_token
+def obtener_catalogo_completo_ejercicios(token_payload):
+    """
+    Obtiene un catálogo completo de ejercicios:
+    1. Los ejercicios base disponibles para todos.
+    2. Los ejercicios personalizados creados por el usuario.
+    """
     try:
-        ejercicio = Ejercicio.query.get_or_404(id)
+        user_id = token_payload.get('id_usuario')
+        usuario = Usuario.query.get(user_id)
+
+        if not usuario:
+            return jsonify({
+                'error': 'Usuario no encontrado',
+                'detalle': f'No se ha encontrado un usuario con el ID {user_id} asociado al token.'
+            }), 404
+        
+        ejercicios_usuario = EjercicioUsuario.query.filter_by(usuarios_id=usuario.id_usuarios).all()
+        
+        ejercicios_base = EjercicioBase.query.all()
+
         return jsonify({
-            'id_ejercicios': ejercicio.id_ejercicios,
-            'ejercicios_base_id': ejercicio.ejercicios_base_id,
-            'rutinas_id': ejercicio.rutinas_id,
-            'nombre': ejercicio.ejercicio_base.nombre,
-            'descripcion': ejercicio.ejercicio_base.descripcion
+            'ejercicios_personalizados': [{
+                'id': e.id_ejercicios_usuario,
+                'nombre': e.nombre,
+                'descripcion': e.descripcion,
+                'video_url': e.video_url,
+                'usuario_id': e.usuarios_id
+            } for e in ejercicios_usuario],
+            'ejercicios_base': [{
+                'id': e.id_ejercicios_base,
+                'nombre': e.nombre,
+                'descripcion': e.descripcion,
+                'video_url': e.video_url
+            } for e in ejercicios_base]
+
         })
-        
-    except NotFound:
-        return jsonify({
-            'error': 'Ejercicio no encontrado',
-            'detalle': f'No existe un ejercicio con ID {id}'
-        }), 404
-    except SQLAlchemyError as e:
-        return jsonify({
-            'error': 'Error en la base de datos',
-            'detalle': str(e)
-        }), 500
-    except Exception as e:
-        return jsonify({
-            'error': 'Error inesperado',
-            'detalle': str(e)
-        }), 500
-@ejercicios_bp.route('/ejercicios-base', methods=['GET'])
-def obtener_ejercicios_base():
-    try:
-        ejercicios = EjercicioBase.query.all()
-        return jsonify([{
-            'id_ejercicios_base': e.id_ejercicios_base,
-            'nombre': e.nombre,
-            'descripcion': e.descripcion,
-            'video_url': e.video_url
-        } for e in ejercicios])
-        
+
     except SQLAlchemyError as e:
         return jsonify({
             'error': 'Error en la base de datos',

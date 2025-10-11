@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
-from modelos.models import db, Rutina, Ejercicio, Serie, EjercicioBase, Entrenamiento, EntrenamientoRealizado
+from modelos.models import db, Rutina, Ejercicio, Serie, EjercicioBase, Entrenamiento, EntrenamientoRealizado, Usuario
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import NotFound
 from security import required_token
+from sqlalchemy import func
+from modelos.models import SerieRealizada
 
 rutinas_completas_bp = Blueprint('rutinas_completas_bp', __name__)
 
@@ -331,3 +333,106 @@ def eliminar_rutina_completa(id, token_payload):
             'error': 'Error inesperado',
             'detalle': str(e)
         }), 500
+
+# --- Funciones de Servicio para Estadísticas ---
+
+def _get_max_pesos_por_rutina(usuario_id):
+    """
+     Encuentra el peso máximo levantado para cada rutina de un usuario y el ejercicio asociado.
+
+     Usa una función de ventana de SQL (`row_number`) para rankear los levantamientos
+     por peso dentro de cada rutina y seleccionar solo el más alto (ranking 1),
+     optimizando el proceso en una única consulta.
+     """
+    subquery = db.session.query(
+        Entrenamiento.rutinas_id,
+        SerieRealizada.peso_kg,
+        EjercicioBase.nombre.label("ejercicio_nombre"),
+        func.row_number().over(
+            partition_by=Entrenamiento.rutinas_id,
+            order_by=SerieRealizada.peso_kg.desc()
+        ).label('rn')
+    ).join(EntrenamientoRealizado, SerieRealizada.entrenamientos_realizados_id == EntrenamientoRealizado.id_entrenamientos_realizados)\
+     .join(Entrenamiento, EntrenamientoRealizado.entrenamientos_id == Entrenamiento.id_entrenamientos)\
+     .join(Ejercicio, EntrenamientoRealizado.ejercicios_id == Ejercicio.id_ejercicios)\
+     .join(EjercicioBase, Ejercicio.ejercicios_base_id == EjercicioBase.id_ejercicios_base)\
+     .filter(Entrenamiento.usuarios_id == usuario_id).subquery()
+
+    return db.session.query(
+        Rutina.id_rutinas,
+        Rutina.nombre.label("rutina_nombre"),
+        subquery.c.peso_kg.label("max_peso"),
+        subquery.c.ejercicio_nombre.label("ejercicio_max_peso")
+    ).join(subquery, Rutina.id_rutinas == subquery.c.rutinas_id)\
+     .filter(subquery.c.rn == 1).all()
+
+
+def _get_avg_pesos_por_rutina(usuario_id):
+    """
+    Ejecuta una consulta para calcular el peso promedio levantado para cada rutina de un usuario.
+    """
+    return db.session.query(
+        Rutina.id_rutinas,
+        func.avg(SerieRealizada.peso_kg).label("promedio_peso")
+    ).join(Entrenamiento, Rutina.id_rutinas == Entrenamiento.rutinas_id)\
+     .join(EntrenamientoRealizado, Entrenamiento.id_entrenamientos == EntrenamientoRealizado.entrenamientos_id)\
+     .join(SerieRealizada, EntrenamientoRealizado.id_entrenamientos_realizados == SerieRealizada.entrenamientos_realizados_id)\
+     .filter(Rutina.usuarios_id == usuario_id)\
+     .group_by(Rutina.id_rutinas).all()
+
+
+@rutinas_completas_bp.route('/rutinas/estadisticas', methods=['GET'])
+@required_token
+def estadisticas_rutinas(token_payload):
+    """
+    Calcula y devuelve las estadísticas de rendimiento para todas las rutinas de un usuario.
+
+    Para cada rutina, calcula:
+    - El peso máximo levantado en un único levantamiento.
+    - El nombre del ejercicio donde se logró dicho peso máximo.
+    - El peso promedio general, considerando todas las series de todos los entrenamientos.
+
+    """
+    try:
+        # 1. Validaciones iniciales
+        usuario_id = token_payload.get('id_usuario')
+        usuario = Usuario.query.get(usuario_id)
+        if not usuario:
+            return jsonify({'error': 'Usuario no encontrado', 'detalle': 'El usuario asociado al token no existe.'}), 404
+
+        rutinas_usuario = Rutina.query.filter_by(usuarios_id=usuario_id).all()
+        if not rutinas_usuario:
+            return jsonify({'mensaje': 'No se encontraron rutinas para este usuario.'}), 200
+
+        max_pesos = _get_max_pesos_por_rutina(usuario_id)
+        avg_pesos = _get_avg_pesos_por_rutina(usuario_id)
+
+    # Procesamiento y combinación de resultados
+        max_map = {r.id_rutinas: r for r in max_pesos}
+        avg_map = {r.id_rutinas: r.promedio_peso for r in avg_pesos}
+
+        resultado_final = []
+        for rutina in rutinas_usuario:
+            max_info = max_map.get(rutina.id_rutinas)
+            avg_info = avg_map.get(rutina.id_rutinas)
+
+            resultado_final.append({
+                "rutina_id": rutina.id_rutinas,
+                "rutina_nombre": rutina.nombre,
+                "max_peso_levantado": float(max_info.max_peso) if max_info and max_info.max_peso is not None else 0,
+                "ejercicio_max_peso": max_info.ejercicio_max_peso if max_info else None,
+                "promedio_peso_general": float(avg_info) if avg_info is not None else 0
+            })
+
+        # Validación final y respuesta
+        if not any(r['max_peso_levantado'] > 0 for r in resultado_final):
+            return jsonify({
+                'mensaje': 'No hay estadísticas de peso disponibles.',
+                'detalle': 'Aún no se han registrado entrenamientos con peso para estas rutinas.',
+                'estadisticas': resultado_final
+            }), 200
+
+        return jsonify(resultado_final), 200
+
+    except Exception as e:
+        return jsonify({"error": "Ocurrió un error al calcular las estadísticas", "detalle": str(e)}), 500

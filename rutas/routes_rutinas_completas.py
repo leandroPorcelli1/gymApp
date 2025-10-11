@@ -366,19 +366,24 @@ def _get_max_pesos_por_rutina(usuario_id):
     ).join(subquery, Rutina.id_rutinas == subquery.c.rutinas_id)\
      .filter(subquery.c.rn == 1).all()
 
-
-def _get_avg_pesos_por_rutina(usuario_id):
+def _get_estadistica_por_ejercicio(usuario_id):
     """
-    Ejecuta una consulta para calcular el peso promedio levantado para cada rutina de un usuario.
+    Calcula estadísticas (promedio y máximo de peso) para cada ejercicio
+    realizado por un usuario, agrupado por rutina.
     """
     return db.session.query(
-        Rutina.id_rutinas,
-        func.avg(SerieRealizada.peso_kg).label("promedio_peso")
-    ).join(Entrenamiento, Rutina.id_rutinas == Entrenamiento.rutinas_id)\
-     .join(EntrenamientoRealizado, Entrenamiento.id_entrenamientos == EntrenamientoRealizado.entrenamientos_id)\
+        Entrenamiento.rutinas_id,
+        Ejercicio.id_ejercicios.label("ejercicio_id"),
+        EjercicioBase.nombre.label("ejercicio_nombre"),
+        func.avg(SerieRealizada.peso_kg).label("promedio_peso"),
+        func.max(SerieRealizada.peso_kg).label("max_peso_ejercicio")
+    ).join(EntrenamientoRealizado, Entrenamiento.id_entrenamientos == EntrenamientoRealizado.entrenamientos_id)\
      .join(SerieRealizada, EntrenamientoRealizado.id_entrenamientos_realizados == SerieRealizada.entrenamientos_realizados_id)\
-     .filter(Rutina.usuarios_id == usuario_id)\
-     .group_by(Rutina.id_rutinas).all()
+     .join(Ejercicio, EntrenamientoRealizado.ejercicios_id == Ejercicio.id_ejercicios)\
+     .join(EjercicioBase, Ejercicio.ejercicios_base_id == EjercicioBase.id_ejercicios_base)\
+     .filter(Entrenamiento.usuarios_id == usuario_id)\
+     .group_by(Entrenamiento.rutinas_id, Ejercicio.id_ejercicios, EjercicioBase.nombre)\
+     .all()
 
 
 @rutinas_completas_bp.route('/rutinas/estadisticas', methods=['GET'])
@@ -390,7 +395,7 @@ def estadisticas_rutinas(token_payload):
     Para cada rutina, calcula:
     - El peso máximo levantado en un único levantamiento.
     - El nombre del ejercicio donde se logró dicho peso máximo.
-    - El peso promedio general, considerando todas las series de todos los entrenamientos.
+    - Estadísticas detalladas por ejercicio (peso promedio y máximo).
 
     """
     try:
@@ -405,23 +410,31 @@ def estadisticas_rutinas(token_payload):
             return jsonify({'mensaje': 'No se encontraron rutinas para este usuario.'}), 200
 
         max_pesos = _get_max_pesos_por_rutina(usuario_id)
-        avg_pesos = _get_avg_pesos_por_rutina(usuario_id)
+        stats_ejercicios = _get_estadistica_por_ejercicio(usuario_id)
 
     # Procesamiento y combinación de resultados
         max_map = {r.id_rutinas: r for r in max_pesos}
-        avg_map = {r.id_rutinas: r.promedio_peso for r in avg_pesos}
+        
+        # Agrupar estadísticas de ejercicios por rutina
+        ejercicios_map = {}
+        for stat in stats_ejercicios:
+            if stat.rutinas_id not in ejercicios_map:
+                ejercicios_map[stat.rutinas_id] = []
+            ejercicios_map[stat.rutinas_id].append(stat)
 
         resultado_final = []
         for rutina in rutinas_usuario:
             max_info = max_map.get(rutina.id_rutinas)
-            avg_info = avg_map.get(rutina.id_rutinas)
+            ejercicios_info = ejercicios_map.get(rutina.id_rutinas, [])
 
             resultado_final.append({
                 "rutina_id": rutina.id_rutinas,
                 "rutina_nombre": rutina.nombre,
                 "max_peso_levantado": float(max_info.max_peso) if max_info and max_info.max_peso is not None else 0,
                 "ejercicio_max_peso": max_info.ejercicio_max_peso if max_info else None,
-                "promedio_peso_general": float(avg_info) if avg_info is not None else 0
+                "estadisticas_por_ejercicio": [{
+                    "ejercicio_nombre": ej.ejercicio_nombre, "promedio_peso": float(ej.promedio_peso), "max_peso": float(ej.max_peso_ejercicio)
+                } for ej in ejercicios_info]
             })
 
         # Validación final y respuesta
